@@ -26,22 +26,27 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 7. **O que deve acontecer com a criança sai de `care.timeline`.** A tela da família, a busca ativa e os painéis leem
    dali; lista paralela não existe.
 8. **Pedido que muda dado precisa do cabeçalho `X-PC: 1`** (a proteção contra CSRF do `server.py`).
+9. **A produção nunca recebe a demonstração.** Ela mora em `~/.local/share/puericorbs` com `demo = false`; a semente
+   se recusa a rodar ali, e nenhum comando de teste ou captura aponta para ela. Comando na produção leva `--data`.
 
 ## Comandos
 
 | Para | Comando |
 |---|---|
 | Instalar | `uv sync` |
-| Testes | `uv run -q pytest -q` (~3 s) |
+| Testes | `uv run -q pytest -q` (~5 s) |
 | Demonstração do zero | `uv run puericorbs seed --reset` |
 | Servidor | `uv run puericorbs serve` (porta 8930) |
 | Domínio para uma prática | `uv run puericorbs domain HOST SLUG` |
+| Consultório novo, na produção | `uv run puericorbs --data ~/.local/share/puericorbs practice SLUG --name "…" --domain HOST` |
+| Convite (o link de primeiro acesso) | `uv run puericorbs --data ~/.local/share/puericorbs invite SLUG [--role receptionist]` |
 | Capturas das telas | `uv run -q --with playwright python scripts/qa_shots.py PASTA [filtro]` (390 e 1280 px, claro e escuro; acusa erro de JavaScript e rolagem lateral) |
 | Sintaxe do JavaScript | `cd puericorbs/web/js && for f in *.js; do node --experimental-default-type=module --check $f; done` |
 
-- O servidor de validação roda como serviço de usuário transitório: `systemctl --user status puericorbs`. Para reiniciar
-  depois de mudar o código: `systemctl --user restart puericorbs`. A unidade permanente está em
-  `deploy/puericorbs.service`.
+- Três serviços de usuário do systemd (as unidades estão em `deploy/`): `puericorbs-producao` (8931, os consultórios
+  de verdade), `puericorbs-demo` (8930) e `puericorbs-tunel` (o túnel do Cloudflare, separado do túnel do CardLine).
+  Depois de mudar o código: `systemctl --user restart puericorbs-producao puericorbs-demo`. O túnel e o DNS estão em
+  `docs/dominios.md`; as credenciais do túnel ficam em `~/.cloudflared/` e nunca aparecem na conversa nem no git.
 - Nunca use `pkill -f` com um padrão que aparece na própria linha de comando: ele mata o seu shell. Ache o processo
   pela porta (`ss -ltnp | grep 8930`).
 
@@ -51,7 +56,9 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
   contas sem senha e a visita aos sites pelo endereço da plataforma: **desligar em produção**.
 - `db.py`: os dois esquemas (plataforma e prática), com `PRAGMA user_version` e migrações (suba a versão, ponha a coluna
   no esquema e escreva a migração).
-- `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma).
+- `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma); o `www.` volta
+  para o domínio sem ele.
+- `invites.py`: o convite de primeiro acesso da equipe (token de uso único, só o hash no banco).
 - `context.py`: o contexto de cada pedido (site, usuário, papel na prática) e os guardas (`staff`, `clinician`, `family`).
 - `auth.py`: senha (scrypt) e sessão (token no cookie, hash no banco).
 - `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
@@ -60,9 +67,11 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `scheduling.py`: horários livres, marcar, mudar o estado. `plans.py`: cota e cobertura. `finance.py`: cobranças e
   resumo do mês. `files.py`: guardar, limpar EXIF, quem vê.
 - `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
-- `seed.py`: a demonstração (tudo relativo ao dia de hoje). `practices.py`: criar uma prática.
+- `seed.py`: a demonstração (tudo relativo ao dia de hoje; recusa a pasta com `demo = false`). `practices.py`: criar
+  uma prática (com ou sem pediatra; sem, ela entra pelo convite).
 - `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
-  (entrada), `js/staff*.js` (equipe), `js/family.js` (família), `js/site.js` (plataforma e site público), `js/lib.js`
+  (entrada), `js/staff*.js` (equipe; o Consultório está em `staff-admin.js`), `js/family.js` (família), `js/site.js`
+  (plataforma, site público e convite), `js/lib.js`
   (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
 
 ## Visual

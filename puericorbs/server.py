@@ -6,10 +6,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import api_family, api_public, api_staff, config
+from . import api_family, api_public, api_staff, config, tenancy
 from .config import Settings
 
 WEB = Path(__file__).parent / "web"
@@ -23,6 +23,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.middleware("http")
     async def guard(request: Request, call_next):
+        bare = tenancy.bare_domain(settings, tenancy.normalize_host(request.headers.get("host")))
+        if bare:
+            return RedirectResponse(str(request.url.replace(netloc=bare)), status_code=301)
         # pedido que muda alguma coisa precisa vir da própria página (o cabeçalho X-PC): a proteção contra CSRF
         if request.method in ("POST", "PUT", "PATCH", "DELETE") and request.url.path.startswith("/api/") \
                 and request.headers.get("x-pc") != "1":

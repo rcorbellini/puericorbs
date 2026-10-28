@@ -1,0 +1,15 @@
+# O túnel do Cloudflare do Puericorbs: os domínios dos pediatras chegam na produção (porta 8931) sem porta aberta em
+# casa. É um túnel só dele, separado do túnel do CardLine. A configuração fica em ~/.cloudflared/puericorbs.yml.
+#   cp deploy/puericorbs-tunel.service ~/.config/systemd/user/ && systemctl --user enable --now puericorbs-tunel
+[Unit]
+Description=Puericorbs: túnel do Cloudflare
+After=network-online.target puericorbs-producao.service
+
+[Service]
+# o --no-autoupdate deixa a atualização do binário com o túnel do CardLine (os dois usam o mesmo arquivo)
+ExecStart=%h/.local/bin/cloudflared tunnel --no-autoupdate --config %h/.cloudflared/puericorbs.yml run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

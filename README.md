@@ -7,7 +7,8 @@ família trocam (exames, fotos, receitas, notas fiscais).
 É um SaaS self-hosted. Cada pediatra tem o próprio domínio (`dramarina.com.br`), todos apontam para este servidor, e o
 endereço decide de qual consultório é o site. Cada pediatra só vê os seus pacientes: cada prática tem o próprio banco.
 
-> **Estado: v0.1 em validação (28/10/2026).** "Puericorbs" é nome provisório.
+> **Estado: v0.1 em validação (28/10/2026).** "Puericorbs" é nome provisório. A produção já tem o consultório da
+> primeira pediatra (karitanaves.com.br), vazio, esperando o convite ser aceito.
 
 ## Os três perfis
 
@@ -35,6 +36,26 @@ uv run -q pytest -q              # os testes (o isolamento entre consultórios p
 - Apontar um domínio para uma prática: `uv run puericorbs domain dramarina.com.br dramarina`. O passo a passo para pôr
   domínios no ar está em [`docs/dominios.md`](docs/dominios.md).
 
+### A produção
+
+A produção é outra instância, com outra pasta de dados e sem nada da demonstração (`demo = false`): os consultórios de
+verdade nunca dividem pasta com as contas sem senha nem com o "reiniciar a demonstração".
+
+```bash
+P="--data $HOME/.local/share/puericorbs"
+uv run puericorbs $P practice drafulana --name "Dra. Fulana" --domain drafulana.com.br   # o consultório, vazio
+uv run puericorbs $P invite drafulana            # o link de primeiro acesso: ela cria a senha e entra
+uv run puericorbs $P invite drafulana --role receptionist                              # o da atendente
+```
+
+| Serviço (usuário do systemd) | O que é | Porta |
+|---|---|---|
+| `puericorbs-producao` | os consultórios de verdade, dados em `~/.local/share/puericorbs` | 8931 |
+| `puericorbs-demo` | a demonstração, dados em `data/` | 8930 |
+| `puericorbs-tunel` | o túnel do Cloudflare que leva os domínios à produção | — |
+
+As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, em [`docs/dominios.md`](docs/dominios.md).
+
 ## O que a v0.1 já faz
 
 - **Pediatra:** o dia (quem chegou, a agenda, o que revisar, a busca ativa, o dinheiro do dia); a consulta com o modelo
@@ -48,8 +69,12 @@ uv run -q pytest -q              # os testes (o isolamento entre consultórios p
   dentro da janela do protocolo e das regras do serviço, com o plano; a curva de crescimento, as vacinas e os marcos;
   os arquivos, com o envio de exames e fotos para a pediatra revisar.
 
-O que ainda não existe (cobrança automática, NFS-e, WhatsApp, mensagens, documentos em PDF, o construtor de
-formulários) está no [`docs/roadmap.md`](docs/roadmap.md).
+- **Entrada da equipe por convite:** a pediatra e a atendente criam a própria senha por um link de uso único, aberto no
+  domínio do consultório; a pediatra ajusta o site (nome, CRM, apresentação, endereço, telefone e cor) em
+  **Consultório**.
+
+O que ainda não existe (o acesso da família na produção, recuperar a senha, cobrança automática, NFS-e, WhatsApp,
+mensagens, documentos em PDF, o construtor de formulários) está no [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Documentos
 

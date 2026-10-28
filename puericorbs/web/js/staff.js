@@ -8,14 +8,15 @@ import * as admin from './staff-admin.js';
 const CLINICIAN = [
   ['hoje', 'Hoje', 'sun'], ['agenda', 'Agenda', 'calendar'], ['pacientes', 'Pacientes', 'users'], ['revisar', 'Revisar', 'inbox'],
   'sep', ['recepcao', 'Recepção', 'phone'], ['financeiro', 'Financeiro', 'card'], ['servicos', 'Serviços', 'sliders'], ['planos', 'Planos', 'repeat'],
+  ['consultorio', 'Consultório', 'globe'],
 ];
 const RECEPTION = [['recepcao', 'Recepção', 'home'], ['agenda', 'Agenda', 'calendar'], ['pacientes', 'Famílias', 'users'], ['planos', 'Planos', 'repeat']];
 const VIEWS = {
   hoje: day.today, agenda: day.agenda, recepcao: day.reception,
   pacientes: people.patients, paciente: people.patient, consulta: people.encounter, revisar: people.review,
-  servicos: admin.services, planos: admin.plans, financeiro: admin.finance,
+  servicos: admin.services, planos: admin.plans, financeiro: admin.finance, consultorio: admin.practice,
 };
-const CLINICIAN_ONLY = new Set(['hoje', 'consulta', 'revisar', 'servicos', 'financeiro']);
+const CLINICIAN_ONLY = new Set(['hoje', 'consulta', 'revisar', 'servicos', 'financeiro', 'consultorio']);
 
 function parse() {
   const raw = location.hash.replace(/^#\/?/, '');

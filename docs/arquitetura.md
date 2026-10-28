@@ -1,7 +1,7 @@
 # Arquitetura
 
-> 28/10/2026 · rascunho de descoberta. Ainda não é código: é o modelo que o código vai seguir. Os nomes no código
-> estão em `glossario.md`.
+> 28/10/2026 · o modelo e o que a v0.1 já faz dele. Os nomes no código estão em `glossario.md`; o mapa do código, no
+> `CLAUDE.md`.
 
 ## Quem é dono de quê
 
@@ -60,13 +60,28 @@ A visibilidade é decidida no servidor, na consulta ao banco, nunca na tela.
 
 ## Como o isolamento é garantido
 
-- PostgreSQL com **Row-Level Security**: toda tabela com dado de paciente tem `practice_id`; a sessão fixa a prática
-  ativa e a política do banco filtra. As tabelas da clínica usam `clinic_id`.
-- **Teste de isolamento obrigatório** para cada tabela nova: o teste tenta ler, alterar e apagar dados de outra
-  prática, e tem de falhar.
-- Arquivos guardados com chave por prática e servidos por link assinado que expira.
-- **Log de auditoria** só de acréscimo: quem viu ou mudou qual registro, quando e de onde.
-- Acesso fora da prática (cobertura entre pediatras, suporte do Puericorbs) é uma concessão com prazo, motivo e registro.
+- **Um banco por prática.** Cada prática tem o próprio arquivo SQLite (`data/practices/p<id>/practice.db`); o banco da
+  plataforma guarda contas, sessões, práticas, domínios, filiações e convites, e nenhum dado de paciente. Um filtro
+  esquecido não vaza nada: o banco da outra prática nem está aberto.
+- **A rota abre outra prática só pela filiação.** `_practice()` (em `api_staff.py`) confere se quem pede trabalha na
+  prática antes de abrir o banco dela; a atendente da clínica atende mais de uma assim.
+- **Teste de isolamento obrigatório** (`tests/test_isolation.py`) para cada rota com dado de paciente: o teste tenta
+  atravessar a fronteira e precisa ser barrado. O teste já foi provado quebrando a guarda de propósito.
+- **Arquivos** na pasta da prática, com nome aleatório, servidos por uma rota que confere a permissão de cada pedido
+  (`files.can_see`) e registra quem abriu.
+- **Log de auditoria** por prática: quem da equipe viu ou mudou qual registro, quando e de onde.
+- **Produção e demonstração em instâncias separadas** (`dominios.md`): a demonstração, que entra sem senha, nunca
+  divide pasta com consultório de verdade.
+- A fazer: acesso fora da prática (cobertura entre pediatras, suporte) como concessão com prazo, motivo e registro.
+
+## Como a equipe entra
+
+A plataforma cria o consultório vazio e gera um convite (`invites.py`): um link de uso único, que só abre no domínio
+do consultório. A pediatra cria a conta ali e já entra; a atendente, igual, com o convite de atendente.
+
+A família ainda não: a recepção cadastra o responsável com o e-mail, e a conta nasce sem senha. Na demonstração isso
+não aparece (as contas entram sem senha); na produção, falta o link para a família criar a senha, do mesmo jeito do
+convite, mandado pela recepção a partir da ficha. É a próxima peça antes de a primeira pediatra receber famílias.
 
 ## As duas peças centrais
 
@@ -93,16 +108,18 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 | Dinheiro | `plan`, `membership` (família × plano), `entitlement` (cota e consumo), `charge`, `payment`, `receipt`, `service_invoice`, `ledger_entry`, `cash_session`, `payout` |
 | Conversa | `thread`, `message`, `broadcast` |
 
-## Pilha (recomendação; a decisão está em aberto em `decisoes.md`)
+## Pilha (decidida: `decisoes.md`, 13, 16, 17 e 20)
 
-- **Servidor:** Python com FastAPI, como o CardLine.
-- **Banco:** PostgreSQL gerenciado: RLS, JSONB para formulários e configurações, backup com restauração a um ponto no
-  tempo. O SQLite do CardLine não serve aqui (muitas práticas escrevendo ao mesmo tempo e isolamento por linha).
-- **Trabalhos de fundo** (lembretes, cobranças, notas, conversão de mídia): fila no próprio PostgreSQL no começo.
-- **Página:** um PWA sem build (HTML, CSS e JavaScript puros), como o CardLine, reaproveitando o vidro. A família usa
-  no celular; o consultório, no computador e no celular.
-- **Arquivos:** armazenamento de objetos compatível com S3, criptografado, na região de São Paulo.
-- **Hospedagem:** nuvem com região no Brasil. Dado de saúde de criança não roda no PC de casa nem atrás de túnel.
+- **Servidor:** Python com FastAPI, como o CardLine (`puericorbs serve`).
+- **Banco:** SQLite em WAL, um arquivo por prática e um da plataforma, com versão e migrações (`db.py`). Uma prática
+  escreve só no próprio arquivo, então a concorrência é a de um consultório.
+- **Trabalhos de fundo** (lembretes, cobranças, notas): ainda não existem; quando vierem, um laço no próprio processo
+  ou um serviço do systemd com temporizador.
+- **Página:** um PWA sem build (HTML, CSS e JavaScript puros, em módulos), como o CardLine, com o vidro claro.
+- **Arquivos:** no disco, na pasta da prática; a imagem perde o EXIF e o HEIC vira JPEG.
+- **Hospedagem:** self-hosted, num computador da casa, atrás de um túnel do Cloudflare só do Puericorbs. A produção
+  (8931) e a demonstração (8930) são serviços de usuário do systemd (`deploy/`). O que isso cobra está na decisão 13 e
+  em `dominios.md`, "Antes do primeiro paciente de verdade".
 
 ## Integrações candidatas
 
@@ -122,13 +139,14 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 - **Base legal:** tutela da saúde, por profissional de saúde (LGPD, art. 11, II, f), para o cuidado; cumprimento de
   obrigação legal, para guardar o prontuário; consentimento só para o que é opcional (comunicados, pesquisa).
 - **Criança e adolescente:** tratamento no melhor interesse deles (LGPD, art. 14).
-- **Dados no Brasil:** evita a transferência internacional e as cláusulas dela.
+- **Dados em casa, no Brasil** (self-hosted): o banco e os arquivos ficam no computador da plataforma. O Cloudflare
+  termina o HTTPS na borda e vê o tráfego: é suboperador, entra na política e no contrato.
 - **Guarda:** prontuário por no mínimo 20 anos desde o último registro (Lei 13.787/2018). Pedido de exclusão não
   apaga prontuário: ele é guardado por obrigação legal, e o titular é informado.
 - **Prontuário sem papel:** a regra do CFM exige que o sistema atenda ao nível NGS2 da certificação SBIS/CFM
   (assinatura digital ICP-Brasil nos registros). Decidir entre certificar o sistema ou assinar cada registro com o
   certificado em nuvem do pediatra (`decisoes.md`).
 - **Contratos:** a prática contrata o Puericorbs como operador; o Puericorbs tem contrato de tratamento com cada suboperador
-  (nuvem, gateway, WhatsApp, e-mail).
+  (Cloudflare, gateway, WhatsApp, e-mail).
 - **Incidente:** plano de resposta, com comunicação à ANPD e aos titulares.
 - **Acesso:** 2FA para quem vê prontuário; sessão por aparelho, com encerramento remoto.

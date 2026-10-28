@@ -1,0 +1,14 @@
+# A demonstração (dados fictícios, entrada sem senha), na porta 8930. Só para validar: nunca no túnel do domínio.
+#   cp deploy/puericorbs-demo.service ~/.config/systemd/user/ && systemctl --user enable --now puericorbs-demo
+[Unit]
+Description=Puericorbs: demonstração (porta 8930)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/puericorbs
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/puericorbs/.venv/bin/puericorbs serve --port 8930
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

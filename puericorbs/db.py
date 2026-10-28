@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-PLATFORM_VERSION = 1
+PLATFORM_VERSION = 2
 PLATFORM_SCHEMA = """
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
@@ -63,8 +63,31 @@ CREATE TABLE memberships (
   role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
   PRIMARY KEY (user_id, practice_id)
 );
+CREATE TABLE invites (
+  token_hash TEXT PRIMARY KEY,
+  practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT,
+  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
 """
-PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+
+
+def _platform_v2(conn: sqlite3.Connection) -> None:
+    """O convite de primeiro acesso (`invites.py`)."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS invites (
+      token_hash TEXT PRIMARY KEY,
+      practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      used_by INTEGER REFERENCES users(id) ON DELETE SET NULL)""")
+
+
+PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2}
 
 PRACTICE_VERSION = 1
 PRACTICE_SCHEMA = """

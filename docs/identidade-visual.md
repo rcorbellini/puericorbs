@@ -3,7 +3,12 @@
 > 28/10/2026. Pedido do dono: "liquid glass estilo CardLine, porém com cores mais claras". O material e as regras vêm
 > do CardLine (`~/cardline/cardline/web/glass.css` e `~/cardline/docs/design.md`); este guia diz o que se herda, o
 > que muda e os tokens. O protótipo das telas é um canvas: https://claude.ai/artifact/Mrnek95xeh8xLoHdqJarYZ (cada
-> tela tem os ajustes "escuro" e "destaque", para comparar).
+> tela tem os ajustes "escuro" e "destaque", para comparar; a marca ali ainda é o nome antigo, "pueri").
+>
+> **No código:** os tokens e os materiais estão em `puericorbs/web/glass.css`, o layout em `app.css`. A Figtree fica no
+> projeto (`web/fonts/`): nenhuma página carrega fonte de fora. O destaque de cada consultório vem do `data-accent`,
+> e a pediatra escolhe o dela em **Consultório**. As capturas (`scripts/qa_shots.py`) conferem 390 e 1280 px, claro e
+> escuro.
 
 ## O que se herda do CardLine
 

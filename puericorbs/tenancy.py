@@ -17,7 +17,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from .config import Settings
-from .db import one
+from .db import connect_platform, one
 
 SITE_COOKIE = "pc_site"
 SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,40}[a-z0-9])?$")
@@ -61,3 +61,14 @@ def resolve(settings: Settings, pconn: sqlite3.Connection, raw_host: str | None,
                 return Site("practice", host, row, simulated=True)
         return Site("platform", host)
     return Site("unknown", host)
+
+
+def bare_domain(settings: Settings, host: str) -> str | None:
+    """O `www.` de um domínio cadastrado vai para o domínio sem ele: a sessão é por endereço, e o site é um só."""
+    if not host.startswith("www."):
+        return None
+    pconn = connect_platform(settings.data_dir)
+    try:
+        return host[4:] if one(pconn, "SELECT host FROM domains WHERE host = ?", (host[4:],)) else None
+    finally:
+        pconn.close()

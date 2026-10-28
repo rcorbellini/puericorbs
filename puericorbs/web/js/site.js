@@ -1,6 +1,6 @@
 // O que se vê antes de entrar: a plataforma (o endereço que não é de nenhum consultório) e o site de cada pediatra,
 // aberto pelo domínio dele, com a entrada da equipe e da família.
-import { api, html, icon, fail, toast, dialog, ask, initials } from './lib.js';
+import { api, html, icon, fail, toast, dialog, ask, initials, dateFull } from './lib.js';
 
 const ACCENT_HEX = { agua: '#08746b', azul: '#1f5fbf', coral: '#b8452a', lavanda: '#5b47c4' };
 const ROLE_ORDER = { clinician: 0, receptionist: 1, guardian: 2 };
@@ -160,3 +160,72 @@ export function publicSite(app) {
   }));
 }
 
+// O convite: o link de primeiro acesso, aberto no domínio do consultório. A pessoa cria a conta com o e-mail e a senha
+// dela; a pediatra diz também como o consultório aparece no site.
+export async function invite(app) {
+  const s = app.site;
+  const root = document.getElementById('app');
+  const token = decodeURIComponent(location.hash.replace(/^#\/convite\//, ''));
+  let inv;
+  try {
+    inv = await api(`/api/invite/${encodeURIComponent(token)}`);
+  } catch (e) {
+    root.innerHTML = String(html`
+      <div class="platform"><div class="glass error-box">
+        <span class="logo" style="width:44px;height:44px"></span>
+        <h1 class="t-title">Este convite não abre</h1>
+        <p class="muted pretty">${e.message}</p>
+        <button class="btn ghost" type="button" data-act="home">Ir para a entrada</button>
+      </div></div>`);
+    root.querySelector('[data-act="home"]').addEventListener('click', () => { location.hash = ''; location.reload(); });
+    return;
+  }
+  const p = inv.practice;
+  const doc = inv.role === 'clinician';
+  const domain = s.domains?.[0] || s.host;
+  root.innerHTML = String(html`
+    <div class="site">
+      <header style="display:flex;align-items:center;gap:12px"><span class="logo"></span><span class="t-small muted">${domain}</span></header>
+      <section class="site-hero">
+        <div class="intro">
+          <span class="t-cap">Convite · ${inv.role_label}</span>
+          <h1 class="site-name">Crie o seu acesso</h1>
+          ${doc
+            ? html`<p class="t-h2 pretty" style="font-weight:500;max-width:46ch">Este é o site do seu consultório, em <b>${domain}</b>. Crie a sua senha e diga como o consultório aparece para as famílias.</p>
+                <p class="muted pretty" style="max-width:52ch">O resto (o texto de apresentação, o endereço, o telefone, a cor, os serviços e a grade) se ajusta depois, lá dentro, em Consultório e Serviços.</p>`
+            : html`<p class="t-h2 pretty" style="font-weight:500;max-width:46ch">Você vai cuidar da agenda, do cadastro e do dinheiro de <b>${p.name}</b>. Crie a sua senha para entrar.</p>`}
+        </div>
+        <div class="enter glass card" style="display:flex;flex-direction:column;gap:14px">
+          <h2 class="t-h2">Seus dados</h2>
+          <form data-invite style="display:flex;flex-direction:column;gap:12px">
+            <div class="rows">
+              <label class="row"><span class="lbl">Seu nome</span><input class="inline" name="name" autocomplete="name" placeholder="Nome e sobrenome" required></label>
+              ${doc ? html`
+                <label class="row"><span class="lbl">Nome no site<span class="sub">o título do site</span></span><input class="inline" name="practice_name" value="${p.name}" required></label>
+                <label class="row"><span class="lbl">CRM e RQE</span><input class="inline" name="registry" value="${p.registry || ''}" placeholder="CRM-UF 000000"></label>` : ''}
+            </div>
+            <div class="rows">
+              <label class="row"><span class="lbl">E-mail<span class="sub">para entrar</span></span><input class="inline" name="email" type="email" autocomplete="username" placeholder="seu@email.com" required></label>
+              <label class="row"><span class="lbl">Senha<span class="sub">8 ou mais caracteres</span></span><input class="inline" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="crie uma senha" required></label>
+            </div>
+            <button class="btn big wide" type="submit">Criar meu acesso</button>
+            <p class="t-small muted">O link vale uma vez só, até ${dateFull(inv.expires_at.slice(0, 10))}.</p>
+          </form>
+        </div>
+      </section>
+    </div>`);
+  root.querySelector('[data-invite]').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const body = Object.fromEntries(new FormData(ev.target));
+    const button = ev.target.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      await api(`/api/invite/${encodeURIComponent(token)}`, { method: 'POST', body });
+      location.hash = '';
+      location.reload();
+    } catch (e) {
+      button.disabled = false;
+      fail(e);
+    }
+  });
+}

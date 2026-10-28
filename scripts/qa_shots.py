@@ -26,7 +26,7 @@ def shots(out: Path, only: str = "") -> int:
         browser = pw.chromium.launch(channel="chrome")
 
         def run(name: str, host: str, hash_: str, viewport: dict, who: str | None = None, theme: str = "claro",
-                before=None) -> None:
+                before=None, expect_404: bool = False) -> None:
             nonlocal problems
             if only and only not in name:
                 return
@@ -36,7 +36,9 @@ def shots(out: Path, only: str = "") -> int:
             page = ctx.new_page()
             errors: list[str] = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+            # a tela que mostra um 404 de propósito (o convite inventado) não conta o 404 como erro
+            page.on("console", lambda m: errors.append(m.text) if m.type == "error"
+                    and not (expect_404 and "status of 404" in m.text) else None)
             base = BASE.format(host=host)
             if who:
                 r = ctx.request.post(f"{base}/api/auth/demo", data={"email": who}, headers={"X-PC": "1"})
@@ -60,6 +62,17 @@ def shots(out: Path, only: str = "") -> int:
             e = ctx.request.post(f"{base}/api/staff/appointments/{focus}/encounter", headers={"X-PC": "1"})
             return str(e.json()["encounter_id"])
 
+        def invite(role: str):
+            def make(ctx, base):
+                from puericorbs import config, invites
+                from puericorbs.db import connect_platform
+                pconn = connect_platform(config.load().data_dir)
+                try:
+                    return invites.create(pconn, 1, role)
+                finally:
+                    pconn.close()
+            return make
+
         m, c, a = "marina@demo.test", "carla@demo.test", "ana@demo.test"
         run("plataforma-1280", "localhost", "", DESK)
         run("plataforma-390", "localhost", "", PHONE)
@@ -82,6 +95,14 @@ def shots(out: Path, only: str = "") -> int:
         run("planos-1280", "dramarina.localhost", "#/planos", DESK, m)
         run("financeiro-1280", "dramarina.localhost", "#/financeiro", DESK, m)
         run("financeiro-390", "dramarina.localhost", "#/financeiro", PHONE, m)
+        run("consultorio-1280", "dramarina.localhost", "#/consultorio", DESK, m)
+        run("consultorio-390", "dramarina.localhost", "#/consultorio", PHONE, m)
+        run("consultorio-escuro-1280", "dramarina.localhost", "#/consultorio", DESK, m, theme="escuro")
+        run("convite-1280", "dramarina.localhost", "#/convite/", DESK, before=invite("clinician"))
+        run("convite-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("clinician"))
+        run("convite-escuro-390", "dramarina.localhost", "#/convite/", PHONE, theme="escuro", before=invite("clinician"))
+        run("convite-recepcao-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("receptionist"))
+        run("convite-invalido-390", "dramarina.localhost", "#/convite/inventado", PHONE, expect_404=True)
         run("recepcao-1280", "dramarina.localhost", "#/recepcao", DESK, c)
         run("recepcao-390", "dramarina.localhost", "#/recepcao", PHONE, c)
         run("recepcao-agenda-1280", "dramarina.localhost", "#/agenda", DESK, c)

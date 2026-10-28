@@ -1,67 +1,111 @@
 # O domínio de cada pediatra
 
 > 28/10/2026. Pedido do dono: cada pediatra com o próprio domínio, todos apontando para este projeto. O endereço
-> decide de qual consultório é o site.
+> decide de qual consultório é o site. O primeiro é o karitanaves.com.br, da primeira pediatra.
 
 ## Como o servidor decide
 
 O pedido chega com o endereço (o cabeçalho `Host`). A ordem está em `puericorbs/tenancy.py`:
 
 1. **O domínio cadastrado** na tabela `domains` abre a prática dele (`dramarina.com.br` → Dra. Marina).
-2. **O subdomínio** `<slug>.<base>` de uma das `base_domains` do `puericorbs.toml` abre a prática do slug. Serve para
-   quem ainda não tem domínio (`dramarina.puericorbs.com.br`) e para testar no computador (`dramarina.localhost`).
+2. **O subdomínio** `<slug>.<base>` de uma das `base_domains` abre a prática do slug. Serve para quem ainda não tem
+   domínio (`dramarina.puericorbs.com.br`, quando houver um domínio da plataforma) e para testar no computador
+   (`dramarina.localhost`).
 3. **Os `platform_hosts`** abrem a plataforma: a lista de consultórios e a administração.
 4. **O resto:** na demonstração, a plataforma; em produção (`demo = false`), "domínio não configurado".
+
+O `www.` de um domínio cadastrado volta para o domínio sem ele (301, no `server.py`): o `www` só precisa do DNS.
 
 A sessão vale por domínio (o cookie é do endereço): entrar em `dramarina.com.br` não entra em `drpauloreis.com.br`. A
 mesma conta pode existir nos dois, com papéis diferentes em cada prática.
 
-## No computador
+## Duas instâncias: a produção e a demonstração
 
-`http://dramarina.localhost:8930` e `http://drpauloreis.localhost:8930`: o navegador manda `*.localhost` para a própria
-máquina, sem configurar nada.
+| | Produção | Demonstração |
+|---|---|---|
+| Para quê | os consultórios de verdade | validar e mostrar (tudo fictício) |
+| Serviço (usuário) | `puericorbs-producao` | `puericorbs-demo` |
+| Porta | 8931 | 8930 |
+| Dados | `~/.local/share/puericorbs` (fora do projeto) | `~/puericorbs/data` |
+| `demo` | `false` (no `config.toml` da pasta) | `true` |
+| Chega da internet | pelo túnel `puericorbs` (os domínios) | não (só no computador, ou por um túnel de teste) |
 
-## Na demonstração pelo ngrok
+Por que separadas: a demonstração entra sem senha e o "reiniciar a demonstração" apaga a pasta inteira. Na mesma
+pasta, isso alcançaria o consultório de verdade. A semente (`puericorbs seed`) se recusa a rodar com `demo = false`.
 
-O ngrok gratuito dá um endereço só, e ele cai na plataforma. O botão "Abrir o site" guarda num cookie (`pc_site`) qual
-consultório visitar, e a página se comporta como se fosse o domínio dele. Fora da demonstração esse cookie é ignorado.
+Os comandos da produção levam `--data ~/.local/share/puericorbs` (ou `PUERICORBS_DATA`):
 
-## Em produção (self-hosted, como o CardLine)
+```bash
+cd ~/puericorbs
+uv run puericorbs --data ~/.local/share/puericorbs practice karitanaves --name "Consultório pediátrico" --domain karitanaves.com.br
+uv run puericorbs --data ~/.local/share/puericorbs invite karitanaves     # o link de primeiro acesso da pediatra
+uv run puericorbs --data ~/.local/share/puericorbs domain outro.com.br karitanaves
+```
 
-O servidor fica atrás de um túnel do Cloudflare (`cloudflared`), sem porta aberta em casa. Recomendação: **um túnel só
-do Puericorbs**, separado do túnel do CardLine, para que uma regra de um nunca derrube o outro.
+## O túnel do Cloudflare
 
-### O caminho recomendado: hostnames personalizados (Cloudflare for SaaS)
+O servidor fica atrás de um túnel do Cloudflare, sem porta aberta em casa, como o CardLine. É **um túnel só do
+Puericorbs** (`puericorbs`, serviço `puericorbs-tunel`), separado do túnel do CardLine: reiniciar um nunca derruba o
+outro. A configuração é `~/.cloudflared/puericorbs.yml` (modelo em `deploy/cloudflared-puericorbs.yml`), com uma regra
+só: tudo o que chega por ele vai para a produção (8931), e o Puericorbs decide o consultório pelo domínio. Domínio novo
+de pediatra não mexe no túnel.
 
-1. Ter o domínio da plataforma no Cloudflare (por exemplo, `puericorbs.com.br`) e, no túnel do Puericorbs, um hostname
-   de origem: `clientes.puericorbs.com.br` → `http://localhost:8930`. A última regra do `ingress` (a que pega qualquer
-   endereço) também vai para `http://localhost:8930`, porque os pedidos chegam com o domínio do pediatra no `Host`.
-2. Ligar o Cloudflare for SaaS na zona e cadastrar `clientes.puericorbs.com.br` como *fallback origin*.
-3. Para cada pediatra:
-   - no registrador do domínio dele, um CNAME de `dramarina.com.br` (e de `www`) para `clientes.puericorbs.com.br`;
-   - no Cloudflare, o *custom hostname* `dramarina.com.br`; o certificado sai sozinho depois da validação (HTTP ou TXT);
-   - no servidor: `uv run puericorbs domain dramarina.com.br dramarina` (e o `www` também).
-4. O pediatra não precisa levar o DNS inteiro para o Cloudflare. Os primeiros hostnames personalizados são gratuitos:
-   conferir o limite atual antes de vender.
+Só um domínio da mesma conta do Cloudflare consegue apontar para o túnel: um domínio de fora não chega à produção.
 
-### A alternativa: uma zona por domínio
+## Pôr no ar o domínio de uma pediatra
 
-Se o pediatra puser o domínio inteiro no Cloudflare, na conta da plataforma, basta rotear o hostname no túnel
-(`cloudflared tunnel route dns <túnel> dramarina.com.br`) e cadastrar o domínio aqui. Dá mais trabalho por pediatra e
-mexe no DNS dele inteiro (e-mail incluído).
+O caminho em uso é **uma zona por domínio**: o domínio da pediatra entra na conta do Cloudflare da plataforma (foi o
+que o dono fez com o karitanaves.com.br, servidores `konnor` e `susan`).
+
+1. **A zona.** Adicionar o domínio no Cloudflare e trocar os servidores DNS no registro.br pelos que o Cloudflare
+   indicar. Conferir: `dig +short NS dominio.com.br` mostra os dois servidores do Cloudflare.
+2. **O certificado da zona.** O `cloudflared` cria registros só na zona do certificado com que fez o login (com o
+   certificado do CardLine, `dominio.com.br` viraria `dominio.com.br.cardline.com.br`, dentro da zona do CardLine). Um
+   login por zona, sem tocar no `cert.pem` que já existe:
+
+   ```bash
+   T=$(mktemp -d); HOME=$T cloudflared tunnel login && mv "$T/.cloudflared/cert.pem" ~/.cloudflared/cert-dominio.pem
+   ```
+
+   O comando mostra um link; quem tem a conta do Cloudflare abre, escolhe a zona e autoriza. O link espera uns 9
+   minutos.
+3. **O DNS.** Os dois nomes apontam para o túnel:
+
+   ```bash
+   cloudflared tunnel --origincert ~/.cloudflared/cert-dominio.pem route dns puericorbs dominio.com.br
+   cloudflared tunnel --origincert ~/.cloudflared/cert-dominio.pem route dns puericorbs www.dominio.com.br
+   ```
+
+   Sem o certificado, à mão no painel do Cloudflare (DNS → Adicionar registro), duas vezes: tipo **CNAME**, nome `@`
+   (e depois `www`), destino **`28af9767-af05-4b68-8962-b72660d23653.cfargotunnel.com`**, proxy **ligado** (nuvem
+   laranja).
+4. **O consultório.** `practice` (se ainda não existe) ou `domain` (se já existe), com `--data` da produção.
+5. **O convite.** `invite SLUG` imprime o link de primeiro acesso. Ele vale 7 dias e uma vez só: mande direto para a
+   pediatra. Abrir o link não gasta o convite; criar a conta, sim. Lá ela cria a senha, diz o nome que aparece no site e
+   o CRM; o resto ela ajusta em **Consultório** e **Serviços**.
+6. **Conferir.** `curl -sI https://dominio.com.br/healthz` responde 200, e `curl -s https://dominio.com.br/api/site`
+   traz o consultório certo em `practice.name`.
+
+### Para muitos pediatras: Cloudflare for SaaS
+
+Quando houver um domínio da plataforma (depende do nome) e pediatras que não queiram levar o DNS para a conta da
+plataforma: o pediatra cria só um CNAME de `dominio.com.br` para `clientes.<plataforma>`, e a plataforma cadastra o
+*custom hostname* no Cloudflare (o certificado sai sozinho). O túnel e o Puericorbs não mudam. Os primeiros hostnames
+personalizados são gratuitos: conferir o limite antes de vender.
 
 ### Quem ainda não tem domínio
 
-Com `base_domains = ["puericorbs.com.br"]` no `data/config.toml` e um curinga `*.puericorbs.com.br` no túnel,
-`dramarina.puericorbs.com.br` funciona sem cadastro nenhum.
+Com um domínio da plataforma no Cloudflare, `base_domains = ["<plataforma>"]` no `config.toml` da produção e um curinga
+`*.<plataforma>` no túnel, `slug.<plataforma>` funciona sem cadastro.
 
-## Antes de ligar em produção
+## Antes do primeiro paciente de verdade
 
-- `demo = false` no `data/config.toml` (sem isso, qualquer um entra como qualquer conta pelos botões da demonstração).
-- `platform_hosts` com o endereço da plataforma (por exemplo, `["puericorbs.com.br", "localhost"]`).
-- As senhas reais de cada pediatra e da recepção; as contas `@demo.test` apagadas.
+O consultório da primeira pediatra está no ar, vazio. Antes de entrar dado de paciente:
 
-## Conferir
-
-- `curl -sI https://dramarina.com.br/healthz` responde 200.
-- `curl -s https://dramarina.com.br/api/site` traz o nome do consultório certo em `practice.name`.
+- **Backup** da pasta `~/.local/share/puericorbs` criptografado e fora de casa, com uma restauração testada.
+- **Disco** do computador criptografado; nobreak.
+- **Entrada:** o link para a família criar a senha, limite de tentativas no login e segundo fator para quem vê
+  prontuário (ainda não existem no código).
+- **Termo de uso, política de privacidade e o contrato com a pediatra** (a plataforma é operadora dos dados dela),
+  validados com um advogado.
+- O Cloudflare termina o HTTPS na borda: ele é suboperador e entra na política.

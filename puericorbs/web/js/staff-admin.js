@@ -411,3 +411,74 @@ export async function finance(view, params, app) {
   });
 }
 
+
+// ---- o consultório (como ele aparece no site) ----------------------------------------------------------------------
+const ACCENTS = { agua: ['Verde-água', '#08746b'], azul: ['Azul', '#1f5fbf'], coral: ['Coral', '#b8452a'], lavanda: ['Lavanda', '#5b47c4'] };
+
+export async function practice(view, params, app) {
+  const r = await api('/api/staff/practice');
+  const p = r.practice;
+  let accent = p.accent;
+  const field = (name, label, value, placeholder, extra = '') => html`<label class="row"><span class="lbl">${label}</span><input class="inline" name="${name}" value="${value || ''}" placeholder="${placeholder}" ${raw(extra)}></label>`;
+  view.innerHTML = String(html`
+    <div class="topbar">
+      <div class="titles"><h1 class="t-title">Consultório</h1><p class="t-small muted">Como o seu consultório aparece no site e para as famílias.</p></div>
+    </div>
+    <div class="cols">
+      <form class="colmain" data-form style="gap:16px">
+        <section class="glass card" style="display:flex;flex-direction:column;gap:14px">
+          <h2 class="t-h2">No alto do site</h2>
+          <div class="rows">
+            ${field('name', html`Nome<span class="sub">o título do site</span>`, p.name, 'Dra. Nome Sobrenome', 'required maxlength="80"')}
+            ${field('title', html`Acima do nome<span class="sub">a especialidade, curta</span>`, p.title, 'Pediatra', 'maxlength="40"')}
+            ${field('registry', 'CRM e RQE', p.registry, 'CRM-UF 000000 · RQE 00000', 'maxlength="80"')}
+          </div>
+          <label style="display:flex;flex-direction:column;gap:8px"><span class="t-cap">Apresentação</span>
+            <textarea class="area" name="bio" maxlength="600" placeholder="Duas ou três frases para as famílias: como você atende e o que valoriza.">${p.bio || ''}</textarea></label>
+        </section>
+        <section class="glass card" style="display:flex;flex-direction:column;gap:14px">
+          <h2 class="t-h2">Onde encontrar</h2>
+          <div class="rows">
+            ${field('address', 'Endereço', p.address, 'Rua, número, bairro, cidade', 'maxlength="160" autocomplete="street-address"')}
+            ${field('phone', 'Telefone', p.phone, '(00) 00000-0000', 'maxlength="40" inputmode="tel"')}
+          </div>
+        </section>
+        <section class="glass card" style="display:flex;flex-direction:column;gap:12px">
+          <h2 class="t-h2">Cor do destaque</h2>
+          <div data-accents role="group" aria-label="Cor do destaque" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+            ${Object.entries(ACCENTS).map(([k, [label, hex]]) => html`<button class="opt" type="button" data-accent="${k}" aria-pressed="${k === accent}" style="min-height:48px;padding:10px 14px"><span class="swatch" style="--sw:${hex}"></span><b style="font-size:14px">${label}</b></button>`)}
+          </div>
+          <p class="note" style="padding:0">A cor dos botões e dos destaques no site, no app da família e aqui.</p>
+        </section>
+        <div style="display:flex;justify-content:flex-end"><button class="btn big" type="submit">Salvar</button></div>
+      </form>
+      <div class="colside" style="max-width:380px">
+        <section class="glass card" style="display:flex;flex-direction:column;gap:12px">
+          <h2 class="t-h2">O endereço do site</h2>
+          ${r.domains.length
+            ? html`<div class="domains">${r.domains.map((d) => html`<span class="pill strong">${icon('globe')}${d}</span>`)}</div>
+                <p class="t-small muted pretty">É por ele que as famílias entram e marcam. Para trocar de domínio ou usar mais um, fale com a plataforma.</p>`
+            : html`<p class="t-small muted pretty">O consultório ainda não tem domínio próprio. Fale com a plataforma para ligar um.</p>`}
+        </section>
+      </div>
+    </div>`);
+  view.querySelector('[data-accents]').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-accent]');
+    if (!b) return;
+    accent = b.dataset.accent;
+    view.querySelectorAll('[data-accent]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  });
+  view.querySelector('[data-form]').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const body = { ...Object.fromEntries(new FormData(ev.target)), accent };
+    try {
+      const saved = await api('/api/staff/practice', { method: 'PUT', body });
+      Object.assign(app.site.practice, saved.practice);
+      document.documentElement.dataset.accent = saved.practice.accent;
+      document.title = `${saved.practice.name} · Puericorbs`;
+      const brand = document.querySelector('.brand .practice');
+      if (brand) brand.textContent = saved.practice.name;
+      toast('Salvo. O site já mostra assim.');
+    } catch (e) { fail(e); }
+  });
+}

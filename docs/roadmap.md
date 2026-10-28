@@ -3,7 +3,21 @@
 > 28/10/2026. Os marcos, do primeiro uso real ao SaaS aberto. O detalhe de cada funcionalidade está em
 > `funcionalidades.md`, com a mesma marcação (`M0`…`M3`).
 
-## Antes de construir: conversar com pediatras
+## Onde estamos (28/10/2026)
+
+A **v0.1** está construída e no ar em duas instâncias (`dominios.md`): a demonstração, para validar, e a produção, com
+o consultório da primeira pediatra em karitanaves.com.br, ainda vazio, esperando o convite ser aceito.
+
+- **Do M0, feito:** contas, práticas, papéis, isolamento por prática (um banco por prática, com os testes), auditoria,
+  famílias e crianças, catálogo de serviços configurável, o vidro claro, o domínio por pediatra e a entrada por
+  convite. **Falta:** termo e política, segundo fator, limite de tentativas no login, backup fora de casa.
+- **Do M1, feito:** agenda (grade, vagas da criança doente, encaixe, recepção do dia, busca ativa), consulta com
+  modelos, medidas e curvas da OMS, linha do cuidado (puericultura, vacinas, marcos), app da família, arquivos com caixa
+  de revisão, plano com cota, recebimentos e o financeiro do mês. **Falta:** o acesso da família na produção (o link
+  para criar a senha, mandado pela recepção), trocar e recuperar a senha, recibos e documentos em PDF, caixa, lembretes
+  (push e e-mail).
+
+## Conversar com pediatras
 
 Três a cinco conversas com pediatras que atendem particular: de preferência um sozinho, um numa clínica pequena e um
 que já vende plano de acompanhamento. Roteiro:
@@ -64,7 +78,10 @@ app nativo (`funcionalidades.md`, seção 13).
 
 ## Próximos passos
 
-1. Decidir o nome, a pilha e o gateway (`decisoes.md`, "Em aberto").
-2. Conversar com os pediatras e escolher o piloto.
-3. Especificar o M0.
-4. Validar com um advogado o plano de acompanhamento, o termo e a política antes de vender.
+1. Ligar o DNS do karitanaves.com.br no túnel e mandar o convite para a primeira pediatra (`dominios.md`).
+2. O acesso da família na produção (o link para criar a senha) e trocar ou recuperar a senha.
+3. Antes do primeiro paciente de verdade: backup criptografado fora de casa, limite de tentativas no login, termo,
+   política e o contrato com a pediatra (`dominios.md`, última seção).
+4. Acompanhar a primeira pediatra e conversar com mais dois ou três (o roteiro acima).
+5. Decidir o nome e o gateway (`decisoes.md`, "Em aberto").
+6. Validar com um advogado o plano de acompanhamento, o termo e a política antes de vender.

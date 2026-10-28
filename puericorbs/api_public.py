@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import auth, files, practices, tenancy, views
+from . import auth, files, invites, practices, tenancy, views
 from .context import ROLE_LABEL, Ctx, dep, need_user, staff_practices
-from .db import many, one
+from .db import insert, many, now_iso, one, transaction, update
 
 router = APIRouter(prefix="/api")
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def practice_public(p: dict) -> dict:
@@ -131,6 +134,63 @@ def logout(request: Request, response: Response, ctx: Ctx = Depends(dep)):
 @router.get("/me")
 def me(ctx: Ctx = Depends(dep)):
     return {"me": me_payload(ctx)}
+
+
+class InviteAccept(BaseModel):
+    name: str
+    email: str
+    password: str
+    practice_name: str | None = None
+    registry: str | None = None
+
+
+def _invite(ctx: Ctx, token: str) -> dict:
+    """O convite só abre no domínio do próprio consultório (nunca pela visita da demonstração)."""
+    if ctx.site.kind != "practice" or ctx.site.simulated:
+        raise HTTPException(404, "Convite não encontrado.")
+    row = invites.find(ctx.pconn, token, ctx.practice_id)
+    if not row:
+        raise HTTPException(404, "Este convite não vale mais: ele já foi usado ou venceu. Peça um novo a quem mandou.")
+    return row
+
+
+@router.get("/invite/{token}")
+def invite_info(token: str, ctx: Ctx = Depends(dep)):
+    row = _invite(ctx, token)
+    return {"role": row["role"], "role_label": ROLE_LABEL[row["role"]], "expires_at": row["expires_at"],
+            "practice": practice_public(ctx.site.practice)}
+
+
+@router.post("/invite/{token}")
+def invite_accept(token: str, body: InviteAccept, request: Request, response: Response, ctx: Ctx = Depends(dep)):
+    """Aceitar o convite: cria a conta (ou usa a que já existe, com a senha dela) e entra no consultório."""
+    row = _invite(ctx, token)
+    name, email = body.name.strip()[:80], body.email.strip().lower()
+    if not name:
+        raise HTTPException(400, "Escreva o seu nome.")
+    if not EMAIL.match(email):
+        raise HTTPException(400, "Confira o e-mail: é com ele que você vai entrar.")
+    if len(body.password) < 8:
+        raise HTTPException(400, "A senha precisa de pelo menos 8 caracteres.")
+    with transaction(ctx.pconn):
+        user = one(ctx.pconn, "SELECT * FROM users WHERE email = ?", (email,))
+        if user and not auth.verify_password(body.password, user["password_hash"]):
+            raise HTTPException(409, "Já existe uma conta com este e-mail. Para aceitar o convite com ela, use a senha dela.")
+        uid = user["id"] if user else insert(ctx.pconn, "users", {
+            "email": email, "name": name, "password_hash": auth.hash_password(body.password), "created_at": now_iso()})
+        if not invites.use(ctx.pconn, row, uid):
+            raise HTTPException(404, "Este convite acabou de ser usado. Peça um novo a quem mandou.")
+        ctx.pconn.execute("INSERT OR REPLACE INTO memberships (user_id, practice_id, role) VALUES (?, ?, ?)",
+                          (uid, ctx.practice_id, row["role"]))
+        if row["role"] == "clinician":
+            # quem é a pediatra diz como o consultório aparece no site
+            changes = {}
+            if (body.practice_name or "").strip():
+                changes["name"] = body.practice_name.strip()[:80]
+            if body.registry is not None:
+                changes["registry"] = body.registry.strip()[:80] or None
+            update(ctx.pconn, "practices", ctx.practice_id, changes)
+    return _login(ctx, request, response, one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (uid,)))
 
 
 class SitePick(BaseModel):

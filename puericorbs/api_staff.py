@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from . import care, catalog, files, finance, growth, plans, protocols, scheduling, views
+from . import care, catalog, files, finance, growth, plans, practices, protocols, scheduling, views
 from .context import Ctx, clinician, dep, staff, staff_practices
 from .db import insert, many, now_iso, one, transaction, update
 
@@ -933,3 +933,49 @@ def reception(ctx: Ctx = Depends(dep)):
             "to_receive": to_receive,
         })
     return out
+
+
+# ---- o consultório (como ele aparece no site) -------------------------------------------------------------------------
+
+class PracticeProfile(BaseModel):
+    name: str
+    title: str = "Pediatra"
+    registry: str | None = None
+    bio: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    accent: str = "agua"
+
+
+def _profile(ctx: Ctx) -> dict:
+    p = one(ctx.pconn, "SELECT * FROM practices WHERE id = ?", (ctx.practice_id,))
+    domains = [d["host"] for d in many(ctx.pconn, "SELECT host FROM domains WHERE practice_id = ? ORDER BY created_at, host",
+                                       (ctx.practice_id,))]
+    return {"practice": {k: p[k] for k in ("id", "slug", "name", "title", "registry", "bio", "address", "phone", "accent")},
+            "domains": domains, "accents": list(practices.ACCENTS)}
+
+
+@router.get("/practice")
+def practice_profile(ctx: Ctx = Depends(dep)):
+    """Só a pediatra muda o próprio site, e só pelo domínio dele."""
+    clinician(ctx)
+    return _profile(ctx)
+
+
+@router.put("/practice")
+def save_practice_profile(body: PracticeProfile, ctx: Ctx = Depends(dep)):
+    clinician(ctx)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "O nome do consultório não pode ficar em branco: é o título do site.")
+    if body.accent not in practices.ACCENTS:
+        raise HTTPException(400, "Escolha uma das cores da lista.")
+
+    def clean(value: str | None, size: int) -> str | None:
+        return (value or "").strip()[:size] or None
+
+    update(ctx.pconn, "practices", ctx.practice_id, {
+        "name": name[:80], "title": clean(body.title, 40) or "Pediatra", "registry": clean(body.registry, 80),
+        "bio": clean(body.bio, 600), "address": clean(body.address, 160), "phone": clean(body.phone, 40),
+        "accent": body.accent})
+    return _profile(ctx)

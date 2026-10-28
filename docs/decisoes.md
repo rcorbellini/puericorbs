@@ -4,6 +4,21 @@
 
 ## Tomadas
 
+### 28/10/2026 — a primeira pediatra
+
+20. **Produção e demonstração são duas instâncias.** A demonstração entra sem senha e o "reiniciar" apaga a pasta
+    inteira; na mesma pasta, isso alcançaria o consultório de verdade. A produção mora em `~/.local/share/puericorbs`
+    (fora do projeto, longe de um `git clean`), com `demo = false`, na porta 8931; a demonstração fica em `data/`, na
+    8930. A semente se recusa a rodar com `demo = false` (`dominios.md`).
+21. **A equipe entra por convite.** Um link de uso único, que vale 7 dias e só abre no domínio do consultório; a
+    pessoa cria a própria senha, e a pediatra diz ali como o consultório aparece no site. Nenhuma senha passa por
+    terceiros, e a plataforma não precisa saber o e-mail dela antes. O consultório nasce vazio (`puericorbs practice`)
+    e a pediatra ajusta o resto em **Consultório**.
+22. **Um túnel do Cloudflare só do Puericorbs**, separado do túnel do CardLine, com uma regra só: tudo vai para a
+    produção, e o Puericorbs decide pelo domínio. Pediatra novo não mexe no túnel.
+23. **O primeiro domínio, karitanaves.com.br, é uma zona na conta do Cloudflare da plataforma** (o dono já fez assim).
+    Funciona sem domínio da plataforma; o Cloudflare for SaaS fica para quando houver o nome e muitos pediatras.
+
 ### 28/10/2026 — construir (a v0.1)
 
 13. **Tudo self-hosted.** Pedido do dono; substitui a 11 ("dados no Brasil, em nuvem"). O servidor roda numa máquina
@@ -57,8 +72,8 @@
 | Decisão | Opções | Recomendação |
 |---|---|---|
 | Nome do produto | "Puericorbs" (provisório) ou outro | decidir antes de registrar o domínio da plataforma e a marca |
-| Como ligar os domínios | Cloudflare for SaaS (CNAME para a plataforma); uma zona por domínio | Cloudflare for SaaS (`dominios.md`) |
-| Onde fica o backup fora de casa | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |
+| Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
+| Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |
 | Gateway de pagamento | Asaas, Pagar.me, Iugu, Mercado Pago, Stripe | Asaas (recorrência, PIX, boleto, split e NFS-e num lugar só); confirmar o PIX Automático e as taxas |
 | Preço do Puericorbs | por pediatra/mês; taxa sobre o que passa no gateway; os dois | conversar com os pilotos antes |
 | Prontuário sem papel | certificar o sistema (SBIS/CFM, NGS2); assinar cada registro com o certificado em nuvem do pediatra | assinar por registro no começo; certificar quando houver tração |

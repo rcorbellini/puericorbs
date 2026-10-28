@@ -86,6 +86,7 @@ function route() {
   const s = app.site;
   if (s.kind === 'platform') return site.platform(app);
   if (s.kind === 'unknown') return site.unknown(app);
+  if (location.hash.startsWith('#/convite/')) return site.invite(app);
   if (!app.me || !app.me.role) return site.publicSite(app);
   if (app.me.role === 'guardian') return family.route(app);
   return staff.route(app);

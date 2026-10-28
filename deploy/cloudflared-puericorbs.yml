@@ -1,0 +1,7 @@
+# Modelo do ~/.cloudflared/puericorbs.yml (troque o ID pelo do túnel: cloudflared tunnel list).
+# A regra final manda qualquer endereço ligado a este túnel para a produção: quem decide o consultório é o próprio
+# Puericorbs, pelo domínio (docs/dominios.md). Domínio novo de pediatra não mexe neste arquivo.
+tunnel: 00000000-0000-0000-0000-000000000000
+credentials-file: /home/USUARIO/.cloudflared/puericorbs.json
+ingress:
+  - service: http://localhost:8931

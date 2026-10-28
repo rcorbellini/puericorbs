@@ -37,7 +37,7 @@ def verify_password(password: str, stored: str | None) -> bool:
     return hmac.compare_digest(test, _unb64(dk))
 
 
-def _token_hash(token: str) -> str:
+def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -45,7 +45,7 @@ def new_session(pconn: sqlite3.Connection, user_id: int, user_agent: str | None,
     token = secrets.token_urlsafe(32)
     expires = (datetime.now() + timedelta(days=days)).replace(microsecond=0).isoformat()
     pconn.execute("INSERT INTO sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)",
-                  (_token_hash(token), user_id, now_iso(), expires, (user_agent or "")[:200]))
+                  (token_hash(token), user_id, now_iso(), expires, (user_agent or "")[:200]))
     return token
 
 
@@ -53,7 +53,7 @@ def session_user(pconn: sqlite3.Connection, token: str | None) -> dict | None:
     if not token:
         return None
     row = one(pconn, """SELECT u.*, s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id
-                        WHERE s.token_hash = ?""", (_token_hash(token),))
+                        WHERE s.token_hash = ?""", (token_hash(token),))
     if not row or row["expires_at"] < now_iso():
         return None
     row.pop("password_hash", None)
@@ -62,4 +62,4 @@ def session_user(pconn: sqlite3.Connection, token: str | None) -> dict | None:
 
 def end_session(pconn: sqlite3.Connection, token: str | None) -> None:
     if token:
-        pconn.execute("DELETE FROM sessions WHERE token_hash = ?", (_token_hash(token),))
+        pconn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash(token),))

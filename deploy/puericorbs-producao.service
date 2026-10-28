@@ -1,0 +1,16 @@
+# A produção: os consultórios de verdade, com os dados em ~/.local/share/puericorbs (demo = false lá), na porta 8931.
+#   cp deploy/puericorbs-producao.service ~/.config/systemd/user/ && systemctl --user enable --now puericorbs-producao
+# Depois de mudar o código: systemctl --user restart puericorbs-producao
+[Unit]
+Description=Puericorbs: produção (porta 8931)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/puericorbs
+Environment=PYTHONUNBUFFERED=1
+Environment=PUERICORBS_DATA=%h/.local/share/puericorbs
+ExecStart=%h/puericorbs/.venv/bin/puericorbs serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

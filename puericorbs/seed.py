@@ -305,6 +305,9 @@ def _reset(settings: Settings) -> None:
 
 
 def run(settings: Settings, reset: bool = False) -> None:
+    if not settings.demo:
+        # a produção nunca recebe a demonstração, e o --reset apagaria os consultórios de verdade
+        raise RuntimeError("Esta pasta é de produção (demo = false): a demonstração não entra nela.")
     if reset:
         _reset(settings)
     pconn = connect_platform(settings.data_dir)

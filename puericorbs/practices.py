@@ -32,10 +32,12 @@ def init_practice_db(conn: sqlite3.Connection) -> None:
             insert(conn, "reserved_slots", {"weekday": wd, "start_min": 16 * 60 + 50, "duration_min": 30})
 
 
-def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slug: str, clinician_name: str,
-                    clinician_email: str, password: str | None, domain: str | None = None, accent: str = "agua",
-                    registry: str | None = None, bio: str | None = None, clinic_id: int | None = None,
-                    address: str | None = None, phone: str | None = None) -> int:
+def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slug: str,
+                    clinician_name: str | None = None, clinician_email: str | None = None, password: str | None = None,
+                    domain: str | None = None, accent: str = "agua", registry: str | None = None,
+                    bio: str | None = None, clinic_id: int | None = None, address: str | None = None,
+                    phone: str | None = None, title: str | None = None) -> int:
+    """Sem `clinician_email`, a prática nasce sem ninguém: a pediatra entra pelo convite (`invites.py`)."""
     slug = slug.strip().lower()
     if not tenancy.SLUG.match(slug):
         raise HTTPException(400, "O endereço curto só aceita letras minúsculas, números e hífen (ex.: dramarina).")
@@ -50,14 +52,17 @@ def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slu
         pid = insert(pconn, "practices", {"slug": slug, "name": name.strip(), "registry": registry, "bio": bio,
                                           "accent": accent, "clinic_id": clinic_id, "address": address,
                                           "phone": phone, "created_at": now_iso()})
+        if title:
+            pconn.execute("UPDATE practices SET title = ? WHERE id = ?", (title.strip(), pid))
         if host:
             insert(pconn, "domains", {"host": host, "practice_id": pid, "created_at": now_iso()})
-        user = one(pconn, "SELECT id FROM users WHERE email = ?", (clinician_email.strip().lower(),))
-        uid = user["id"] if user else insert(pconn, "users", {
-            "email": clinician_email.strip().lower(), "name": clinician_name.strip(),
-            "password_hash": auth.hash_password(password) if password else None, "created_at": now_iso()})
-        pconn.execute("INSERT OR REPLACE INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')",
-                      (uid, pid))
+        if clinician_email:
+            user = one(pconn, "SELECT id FROM users WHERE email = ?", (clinician_email.strip().lower(),))
+            uid = user["id"] if user else insert(pconn, "users", {
+                "email": clinician_email.strip().lower(), "name": (clinician_name or name).strip(),
+                "password_hash": auth.hash_password(password) if password else None, "created_at": now_iso()})
+            pconn.execute("INSERT OR REPLACE INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')",
+                          (uid, pid))
     conn = connect_practice(data_dir, pid)
     try:
         init_practice_db(conn)
