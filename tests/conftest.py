@@ -32,3 +32,11 @@ def client(settings, host: str, who: str | None = None) -> TestClient:
         r = c.post("/api/auth/demo", json={"email": who}, headers=H)
         assert r.status_code == 200, r.text
     return c
+
+
+@pytest.fixture(autouse=True)
+def _sem_tentativas_antigas():
+    """As senhas erradas ficam na memória do processo: cada teste começa do zero."""
+    from puericorbs import auth
+    auth._failures.clear()
+    yield

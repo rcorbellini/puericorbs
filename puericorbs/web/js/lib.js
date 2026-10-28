@@ -122,6 +122,8 @@ const P = {
   arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   stetho: '<path d="M6 3v5a4 4 0 0 0 8 0V3"/><path d="M10 12v2.5a4.5 4.5 0 0 0 9 0V13"/><circle cx="19" cy="11" r="2"/>',
   cash: '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
 };
 export const icon = (name, extra = '') => raw(`<svg class="ic ${extra}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || ''}</svg>`);
 
@@ -212,4 +214,59 @@ export function carePill(item, todayIso) {
   if (item.type === 'marco') return '';
   if (item.date && item.date > todayIso) return html`<span class="pill todo">${relDay(item.date, todayIso).replace(/^em /, 'Em ')}</span>`;
   return html`<span class="pill todo">A fazer</span>`;
+}
+
+// O link de um convite: copiar, mandar pelo WhatsApp (já com a mensagem e, se houver, o telefone) ou pelo compartilhar
+// do celular. Quem gera o link é quem manda: nada sai do Puericorbs sozinho.
+export function shareLink({ title, intro, link, text, phone, note }) {
+  const message = text || link;
+  let digits = String(phone || '').replace(/\D/g, '');
+  if (digits && digits.length <= 11) digits = `55${digits}`;
+  const wa = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  const d = dialog({
+    title,
+    body: html`${intro ? html`<p class="muted pretty">${intro}</p>` : ''}
+      <label class="field">${icon('link')}<input data-link readonly value="${link}" aria-label="O link" style="font-size:13px"></label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button class="btn" type="button" data-share="copy">${icon('copy')}Copiar o link</button>
+        <a class="btn ghost" href="${wa}" target="_blank" rel="noopener">${icon('message')}Mandar pelo WhatsApp</a>
+        ${navigator.share ? html`<button class="btn ghost" type="button" data-share="native">${icon('upload')}Outro app</button>` : ''}
+      </div>
+      ${note ? html`<p class="note" style="padding:0">${note}</p>` : ''}`,
+  });
+  const input = d.el.querySelector('[data-link]');
+  d.el.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-share]');
+    if (!b) return;
+    if (b.dataset.share === 'native') {
+      try { await navigator.share({ title, text: message }); } catch { /* a pessoa desistiu */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      input.select();
+      document.execCommand('copy');
+    }
+    toast('Link copiado.');
+  });
+  input.addEventListener('focus', () => input.select());
+  return d;
+}
+
+// Um formulário curto num diálogo: rows = [[name, rótulo, exemplo, explicação?]]. Devolve os valores ou null.
+export function askFields(title, rows, verb, intro = '') {
+  return new Promise((resolve) => {
+    let done = false;
+    const d = dialog({
+      title,
+      body: html`${intro ? html`<p class="muted pretty">${intro}</p>` : ''}<div class="rows">${rows.map(([name, label, placeholder, sub]) => html`<label class="row"><span class="lbl">${label}${sub ? html`<span class="sub">${sub}</span>` : ''}</span><input class="inline" name="${name}" placeholder="${placeholder}"></label>`)}</div>`,
+      actions: [{ label: 'Cancelar', kind: 'ghost' }, { label: verb, run: (el) => {
+        done = true;
+        resolve(Object.fromEntries([...el.querySelectorAll('[name]')].map((i) => [i.name, i.value.trim()])));
+      } }],
+    });
+    d.el.addEventListener('close', () => { if (!done) resolve(null); });
+    d.el.querySelector('[name]')?.focus();
+  });
 }

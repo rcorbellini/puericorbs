@@ -26,7 +26,7 @@ def shots(out: Path, only: str = "") -> int:
         browser = pw.chromium.launch(channel="chrome")
 
         def run(name: str, host: str, hash_: str, viewport: dict, who: str | None = None, theme: str = "claro",
-                before=None, expect_404: bool = False) -> None:
+                before=None, expect_404: bool = False, after=None) -> None:
             nonlocal problems
             if only and only not in name:
                 return
@@ -47,6 +47,9 @@ def shots(out: Path, only: str = "") -> int:
             page.goto(f"{base}/{hash_}{extra}")
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(500)
+            if after:
+                after(page)
+                page.wait_for_timeout(500)
             wide = page.evaluate("document.documentElement.scrollWidth > window.innerWidth + 1")
             page.screenshot(path=str(out / f"{name}.png"), full_page=True)
             if errors or wide:
@@ -62,16 +65,25 @@ def shots(out: Path, only: str = "") -> int:
             e = ctx.request.post(f"{base}/api/staff/appointments/{focus}/encounter", headers={"X-PC": "1"})
             return str(e.json()["encounter_id"])
 
-        def invite(role: str):
+        def invite(role: str, kind: str = "staff"):
             def make(ctx, base):
                 from puericorbs import config, invites
-                from puericorbs.db import connect_platform
-                pconn = connect_platform(config.load().data_dir)
+                from puericorbs.db import connect_platform, connect_practice, one
+                data = config.load().data_dir
+                pconn = connect_platform(data)
                 try:
-                    return invites.create(pconn, 1, role)
+                    if kind == "family":  # um responsável sem conta ainda
+                        g = one(connect_practice(data, 1), "SELECT id FROM guardians WHERE user_id IS NULL ORDER BY id LIMIT 1")
+                        return invites.create(pconn, kind="family", practice_id=1, guardian_id=g["id"])[0]
+                    if kind != "staff":
+                        return invites.create(pconn, kind=kind, created_by=2)[0]
+                    return invites.create(pconn, kind="staff", practice_id=1, role=role)[0]
                 finally:
                     pconn.close()
             return make
+
+        def click(selector: str):
+            return lambda page: page.click(selector)
 
         m, c, a = "marina@demo.test", "carla@demo.test", "ana@demo.test"
         run("plataforma-1280", "localhost", "", DESK)
@@ -103,6 +115,18 @@ def shots(out: Path, only: str = "") -> int:
         run("convite-escuro-390", "dramarina.localhost", "#/convite/", PHONE, theme="escuro", before=invite("clinician"))
         run("convite-recepcao-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("receptionist"))
         run("convite-invalido-390", "dramarina.localhost", "#/convite/inventado", PHONE, expect_404=True)
+        run("convite-familia-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "family"))
+        run("convite-colega-1280", "dramarina.localhost", "#/convite/", DESK, before=invite("", "practice"))
+        run("convite-colega-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "practice"))
+        run("convite-admin-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "admin"))
+        run("acesso-familia-1280", "dramarina.localhost", "#/paciente/1", DESK, m, after=click('[data-act="access"]'))
+        run("acesso-familia-390", "dramarina.localhost", "#/paciente/1", PHONE, m, after=click('[data-act="access"]'))
+        run("acesso-familia-recepcao-390", "dramarina.localhost", "#/paciente/1", PHONE, c, after=click('[data-act="access"]'))
+        run("admin-entrar-390", "dramarina.localhost", "#/admin", PHONE)
+        run("admin-1280", "localhost", "#/admin", DESK, "admin@demo.test")
+        run("admin-390", "localhost", "#/admin", PHONE, "admin@demo.test")
+        run("admin-escuro-1280", "localhost", "#/admin", DESK, "admin@demo.test", theme="escuro")
+        run("admin-no-site-390", "dramarina.localhost", "", PHONE, "admin@demo.test")
         run("recepcao-1280", "dramarina.localhost", "#/recepcao", DESK, c)
         run("recepcao-390", "dramarina.localhost", "#/recepcao", PHONE, c)
         run("recepcao-agenda-1280", "dramarina.localhost", "#/agenda", DESK, c)

@@ -4,6 +4,22 @@
 
 ## Tomadas
 
+### 28/10/2026 — convites e administração
+
+24. **Quatro convites, e quem gera cada um** (`arquitetura.md`, "Como cada pessoa entra"). Pedido do dono: a pediatra
+    gera o da família, o da atendente e o de um colega; a administração acompanha e também gera. A recepção também
+    gera o da família, porque é ela quem cadastra.
+25. **Uma conta só se liga com a senha dela; o cadastro não liga conta nenhuma.** Antes, a recepção cadastrava o
+    responsável e o sistema ligava a ficha a qualquer conta com o mesmo e-mail; com um link de "criar senha", isso
+    entregaria a conta (e os filhos) de outra pessoa. O link da família troca a senha só de quem é só daquela família,
+    naquele consultório.
+26. **O colega ganha o próprio consultório**, não entra no de quem convidou: "cada um vendo só os seus pacientes". Ele
+    nasce sem domínio; a plataforma liga o domínio pelo painel e pelo DNS (`dominios.md`).
+27. **O painel da administração fica em `#/admin` de qualquer site nosso**, até existir o domínio da plataforma. Vê
+    números, equipes, convites e o registro; nunca paciente. Não põe ninguém num consultório que já tem pediatra.
+28. **Limite de senha errada** (10 por endereço, 20 por conta, em 15 minutos), porque a entrada da administração
+    está na internet desde o painel.
+
 ### 28/10/2026 — a primeira pediatra
 
 20. **Produção e demonstração são duas instâncias.** A demonstração entra sem senha e o "reiniciar" apaga a pasta
@@ -72,6 +88,8 @@
 | Decisão | Opções | Recomendação |
 |---|---|---|
 | Nome do produto | "Puericorbs" (provisório) ou outro | decidir antes de registrar o domínio da plataforma e a marca |
+| Domínio da plataforma | nenhum (hoje o painel e os convites de colega abrem no domínio de uma pediatra); um domínio com o nome | registrar junto com o nome: o painel e os convites de colega vão para ele (uma linha no `config.toml`) |
+| Recuperar a senha da equipe | link por e-mail; a administração gera um link de troca | link por e-mail quando houver envio de e-mail; até lá, falar com a plataforma |
 | Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
 | Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |
 | Gateway de pagamento | Asaas, Pagar.me, Iugu, Mercado Pago, Stripe | Asaas (recorrência, PIX, boleto, split e NFS-e num lugar só); confirmar o PIX Automático e as taxas |

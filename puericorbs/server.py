@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import api_family, api_public, api_staff, config, tenancy
+from . import api_admin, api_family, api_invites, api_public, api_staff, config, tenancy
 from .config import Settings
 
 WEB = Path(__file__).parent / "web"
@@ -47,8 +47,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             status_code=422)
 
     app.include_router(api_public.router)
+    app.include_router(api_invites.router)
     app.include_router(api_staff.router)
     app.include_router(api_family.router)
+    app.include_router(api_admin.router)
     app.mount("/static", StaticFiles(directory=WEB), name="static")
 
     @app.get("/manifest.webmanifest", include_in_schema=False)

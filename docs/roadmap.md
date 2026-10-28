@@ -10,12 +10,13 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
 
 - **Do M0, feito:** contas, práticas, papéis, isolamento por prática (um banco por prática, com os testes), auditoria,
   famílias e crianças, catálogo de serviços configurável, o vidro claro, o domínio por pediatra e a entrada por
-  convite. **Falta:** termo e política, segundo fator, limite de tentativas no login, backup fora de casa.
+  convite (equipe, família, colega e administração), o painel da administração e o limite de senha errada.
+  **Falta:** termo e política, segundo fator, backup fora de casa.
 - **Do M1, feito:** agenda (grade, vagas da criança doente, encaixe, recepção do dia, busca ativa), consulta com
   modelos, medidas e curvas da OMS, linha do cuidado (puericultura, vacinas, marcos), app da família, arquivos com caixa
-  de revisão, plano com cota, recebimentos e o financeiro do mês. **Falta:** o acesso da família na produção (o link
-  para criar a senha, mandado pela recepção), trocar e recuperar a senha, recibos e documentos em PDF, caixa, lembretes
-  (push e e-mail).
+  de revisão, plano com cota, recebimentos e o financeiro do mês, e o acesso da família pelo link (que também serve
+  para a família criar outra senha). **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
+  lembretes (push e e-mail).
 
 ## Conversar com pediatras
 
@@ -78,8 +79,9 @@ app nativo (`funcionalidades.md`, seção 13).
 
 ## Próximos passos
 
-1. Mandar o convite para a primeira pediatra (o karitanaves.com.br está no ar desde 28/10; `dominios.md`).
-2. O acesso da família na produção (o link para criar a senha) e trocar ou recuperar a senha.
+1. Mandar o convite para a primeira pediatra (o karitanaves.com.br está no ar desde 28/10; `dominios.md`), e o dono
+   aceitar o convite da administração.
+2. O domínio da plataforma (com o nome): o painel e os convites de colega saem do domínio da primeira pediatra.
 3. Antes do primeiro paciente de verdade: backup criptografado fora de casa, limite de tentativas no login, termo,
    política e o contrato com a pediatra (`dominios.md`, última seção).
 4. Acompanhar a primeira pediatra e conversar com mais dois ou três (o roteiro acima).

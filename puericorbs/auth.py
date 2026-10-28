@@ -14,6 +14,13 @@ from .db import now_iso, one
 
 COOKIE = "pc_session"
 
+# As senhas erradas, por endereço e por conta, numa janela de 15 minutos. Ficam na memória do processo (um reinício
+# zera), o que basta para segurar quem tenta adivinhar senha pela internet.
+WINDOW = timedelta(minutes=15)
+MAX_BY_IP = 10
+MAX_BY_EMAIL = 20
+_failures: dict[str, list[datetime]] = {}
+
 
 def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
@@ -31,6 +38,8 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, stored: str | None) -> bool:
     if not stored or not stored.startswith("scrypt$"):
+        # a conta que não existe (ou sem senha) gasta o mesmo tempo: o relógio não diz quais e-mails têm conta
+        hashlib.scrypt(password.encode(), salt=b"puericorbs-falsa", n=2**14, r=8, p=1, dklen=32)
         return False
     _, n, r, p, salt, dk = stored.split("$")
     test = hashlib.scrypt(password.encode(), salt=_unb64(salt), n=int(n), r=int(r), p=int(p), dklen=32)
@@ -63,3 +72,26 @@ def session_user(pconn: sqlite3.Connection, token: str | None) -> dict | None:
 def end_session(pconn: sqlite3.Connection, token: str | None) -> None:
     if token:
         pconn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash(token),))
+
+
+def _recent(key: str) -> list[datetime]:
+    cutoff = datetime.now() - WINDOW
+    hits = [t for t in _failures.get(key, []) if t > cutoff]
+    if hits:
+        _failures[key] = hits
+    else:
+        _failures.pop(key, None)
+    return hits
+
+
+def throttled(ip: str, email: str) -> bool:
+    """Já errou demais: por este endereço ou nesta conta."""
+    return len(_recent(f"ip:{ip}")) >= MAX_BY_IP or len(_recent(f"email:{email.lower()}")) >= MAX_BY_EMAIL
+
+
+def failed(ip: str, email: str) -> None:
+    if len(_failures) > 5000:  # muita gente diferente errando: a janela recomeça para não crescer sem fim
+        _failures.clear()
+    now = datetime.now()
+    for key in (f"ip:{ip}", f"email:{email.lower()}"):
+        _failures.setdefault(key, []).append(now)

@@ -1,6 +1,6 @@
 // A configuração e o dinheiro: o catálogo de serviços (cada serviço do jeito do pediatra), os planos de acompanhamento e
 // o financeiro da prática.
-import { api, html, raw, icon, toast, fail, dialog, ask, money, dateBR, dateFull, initials, actions, centsInput, toCents, debounce, monthName } from './lib.js';
+import { api, html, raw, icon, toast, fail, dialog, ask, askFields, shareLink, money, dateBR, dateFull, initials, actions, centsInput, toCents, debounce, monthName } from './lib.js';
 import { revenueBars, bindBars, revenueTable } from './charts.js';
 import { isClinician } from './staff-common.js';
 import { refresh } from './staff.js';
@@ -416,8 +416,11 @@ export async function finance(view, params, app) {
 const ACCENTS = { agua: ['Verde-água', '#08746b'], azul: ['Azul', '#1f5fbf'], coral: ['Coral', '#b8452a'], lavanda: ['Lavanda', '#5b47c4'] };
 
 export async function practice(view, params, app) {
-  const r = await api('/api/staff/practice');
+  const [r, team] = await Promise.all([api('/api/staff/practice'), api('/api/staff/team')]);
   const p = r.practice;
+  const invs = team.invites.filter((i) => i.status === 'pendente' || i.status === 'aceito').slice(0, 8);
+  const invText = (i) => (i.status === 'pendente' ? `link enviado, vale até ${dateBR(i.expires_at)}`
+    : i.kind === 'practice' ? `aceito${i.new_practice ? `: criou ${i.new_practice}` : ''}` : `aceito em ${dateBR(i.used_at)}`);
   let accent = p.accent;
   const field = (name, label, value, placeholder, extra = '') => html`<label class="row"><span class="lbl">${label}</span><input class="inline" name="${name}" value="${value || ''}" placeholder="${placeholder}" ${raw(extra)}></label>`;
   view.innerHTML = String(html`
@@ -460,8 +463,55 @@ export async function practice(view, params, app) {
                 <p class="t-small muted pretty">É por ele que as famílias entram e marcam. Para trocar de domínio ou usar mais um, fale com a plataforma.</p>`
             : html`<p class="t-small muted pretty">O consultório ainda não tem domínio próprio. Fale com a plataforma para ligar um.</p>`}
         </section>
+        <section class="glass card" style="display:flex;flex-direction:column;gap:6px">
+          <div class="phead center"><h2 class="t-h2">Equipe</h2><button class="btn ghost small" type="button" data-team="invite">${icon('plus')}Convidar atendente</button></div>
+          <div>${team.members.map((m) => html`<div class="li"><span class="av sm">${initials(m.name)}</span>
+            <span class="grow" style="min-width:0"><b>${m.name}${m.me ? ' (você)' : ''}</b><span class="t-small muted" style="display:block">${m.role_label} · ${m.last_login ? `entrou ${dateBR(m.last_login)}` : 'ainda não entrou'}</span></span>
+            ${m.role === 'receptionist' ? html`<button class="linkbtn t-small" type="button" data-team="remove" data-id="${m.id}" data-name="${m.name}">Tirar o acesso</button>` : ''}</div>`)}</div>
+          ${invs.length ? html`<span class="t-cap" style="margin-top:8px">Convites</span>
+            <div>${invs.map((i) => html`<div class="li"><span class="grow" style="min-width:0"><b>${i.kind === 'practice' ? 'Colega' : 'Atendente'}${i.label ? ` · ${i.label}` : ''}</b><span class="t-small muted" style="display:block">${invText(i)}</span></span>
+              ${i.status === 'pendente' ? html`<button class="linkbtn t-small" type="button" data-team="revoke" data-id="${i.id}">Cancelar</button>` : ''}</div>`)}</div>` : ''}
+        </section>
+        <section class="glass card" style="display:flex;flex-direction:column;gap:10px">
+          <h2 class="t-h2">Convidar um colega</h2>
+          <p class="t-small muted pretty">Um colega pediatra ganha o próprio consultório, com o site e os pacientes dele. Você não vê os pacientes dele, nem ele os seus.</p>
+          <div><button class="btn ghost" type="button" data-team="colleague">${icon('users')}Convidar um colega</button></div>
+        </section>
       </div>
     </div>`);
+  view.querySelector('.colside').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-team]');
+    if (!b) return;
+    const what = b.dataset.team;
+    try {
+      if (what === 'invite' || what === 'colleague') {
+        const colleague = what === 'colleague';
+        const v = await askFields(colleague ? 'Convidar um colega' : 'Convidar atendente',
+          [['label', colleague ? 'Nome do colega' : 'Nome da atendente', 'Nome e sobrenome', 'para você reconhecer o convite']], 'Gerar o link',
+          colleague ? 'O link cria um consultório só do colega, separado do seu. O domínio, a plataforma liga depois.'
+            : 'A pessoa cria a senha e entra na agenda, no cadastro e no dinheiro deste consultório. Nada clínico.');
+        if (!v) return;
+        const x = await api('/api/staff/invites', { method: 'POST', body: { kind: colleague ? 'colleague' : 'receptionist', label: v.label || null } });
+        const hi = v.label ? `Olá, ${v.label.split(' ')[0]}!` : 'Olá!';
+        shareLink({
+          title: colleague ? 'Convite: um colega' : 'Convite: atendente', link: x.link,
+          text: colleague
+            ? `${hi} Estou usando o Puericorbs no consultório: agenda, acompanhamento das crianças, planos e o app das famílias, num site com o nosso domínio. Este link cria o seu consultório, com os seus pacientes só seus. Vale 7 dias: ${x.link}`
+            : `${hi} Este é o seu acesso ao consultório de ${p.name} no Puericorbs. Crie a sua senha por este link (vale 7 dias): ${x.link}`,
+          note: 'O link vale 7 dias e uma vez só. Se mandar para a pessoa errada, cancele aqui.',
+        }).el.addEventListener('close', refresh);
+      }
+      if (what === 'remove' && await ask(`Tirar o acesso de ${b.dataset.name}?`, 'A pessoa deixa de entrar neste consultório na hora. O que foi registrado continua no histórico.', 'Tirar o acesso', true)) {
+        await api(`/api/staff/team/${b.dataset.id}`, { method: 'DELETE' });
+        toast('Acesso tirado.');
+        refresh();
+      }
+      if (what === 'revoke' && await ask('Cancelar este convite?', 'O link deixa de abrir na hora.', 'Cancelar o convite', true)) {
+        await api(`/api/staff/invites/${b.dataset.id}/revoke`, { method: 'POST' });
+        refresh();
+      }
+    } catch (e) { fail(e); }
+  });
   view.querySelector('[data-accents]').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-accent]');
     if (!b) return;

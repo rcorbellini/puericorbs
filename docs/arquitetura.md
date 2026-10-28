@@ -74,14 +74,36 @@ A visibilidade é decidida no servidor, na consulta ao banco, nunca na tela.
   divide pasta com consultório de verdade.
 - A fazer: acesso fora da prática (cobertura entre pediatras, suporte) como concessão com prazo, motivo e registro.
 
-## Como a equipe entra
+## Como cada pessoa entra: o convite
 
-A plataforma cria o consultório vazio e gera um convite (`invites.py`): um link de uso único, que só abre no domínio
-do consultório. A pediatra cria a conta ali e já entra; a atendente, igual, com o convite de atendente.
+Ninguém escolhe a senha de ninguém. Toda conta nasce de um convite (`invites.py`, `api_invites.py`): um link de uso
+único, que vale 7 dias, gerado por quem tem o direito e mandado por essa pessoa (WhatsApp, cópia); o Puericorbs não
+manda nada sozinho.
 
-A família ainda não: a recepção cadastra o responsável com o e-mail, e a conta nasce sem senha. Na demonstração isso
-não aparece (as contas entram sem senha); na produção, falta o link para a família criar a senha, do mesmo jeito do
-convite, mandado pela recepção a partir da ficha. É a próxima peça antes de a primeira pediatra receber famílias.
+| Convite | Quem gera | Onde abre | O que faz |
+|---|---|---|---|
+| Pediatra (equipe) | a administração, para um consultório que ainda não tem pediatra | o domínio do consultório | cria a conta; ela diz o nome do site e o CRM |
+| Atendente (equipe) | a pediatra, em **Consultório** | o domínio do consultório | cria a conta da atendente; a pediatra pode tirar o acesso depois |
+| Família | a pediatra ou a recepção, na ficha (**Acesso da família**) | o domínio do consultório | o responsável cria a senha do app (ou uma nova, se esqueceu) |
+| Colega | a pediatra, em **Consultório**; a administração, no painel | qualquer site nosso | o colega cria a conta e o **próprio** consultório, que nasce sem domínio até a plataforma ligar um |
+| Administração | a administração, no painel; a linha de comando | qualquer site nosso | uma conta da plataforma (senha de 12 ou mais) |
+
+As regras que fecham o caminho para tomar a conta de alguém:
+
+- **Uma conta que já existe só se liga com a senha dela.** O cadastro da recepção não liga o responsável a conta
+  nenhuma (o e-mail digitado não prova nada); quem liga é a própria pessoa, ao aceitar o convite.
+- **O link da família só troca a senha de quem é só daquela família, naquele consultório.** A conta da equipe, da
+  administração ou de quem também é responsável em outro consultório pede a senha que já tem.
+- **A plataforma não põe ninguém dentro de um consultório que já tem pediatra:** a equipe é a pediatra quem convida.
+- **Senha errada demais espera:** 10 por endereço ou 20 por conta em 15 minutos (`auth.throttled`).
+
+## O painel da administração
+
+Em `#/admin`, de qualquer site nosso (ainda não há domínio da plataforma). A administração vê os consultórios em
+números (crianças, famílias, contas da família, consultas), a equipe de cada um, os convites (menos os da família, que
+levam o nome do responsável) e o registro da plataforma (`platform_log`); liga domínios e gera os convites dela. Nunca
+abre ficha, lista de pacientes ou arquivo: as rotas de paciente pedem filiação ao consultório, e a administração não
+tem.
 
 ## As duas peças centrais
 

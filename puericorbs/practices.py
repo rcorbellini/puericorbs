@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+import unicodedata
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -32,11 +34,21 @@ def init_practice_db(conn: sqlite3.Connection) -> None:
             insert(conn, "reserved_slots", {"weekday": wd, "start_min": 16 * 60 + 50, "duration_min": 30})
 
 
+def free_slug(pconn: sqlite3.Connection, name: str) -> str:
+    """O endereço curto a partir do nome ("Dr. João Lima" → drjoaolima), sem repetir um que já existe."""
+    plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+    base = re.sub(r"[^a-z0-9]", "", plain)[:36] or "consultorio"
+    slug, n = base, 2
+    while one(pconn, "SELECT id FROM practices WHERE slug = ?", (slug,)):
+        slug, n = f"{base}{n}", n + 1
+    return slug
+
+
 def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slug: str,
                     clinician_name: str | None = None, clinician_email: str | None = None, password: str | None = None,
                     domain: str | None = None, accent: str = "agua", registry: str | None = None,
                     bio: str | None = None, clinic_id: int | None = None, address: str | None = None,
-                    phone: str | None = None, title: str | None = None) -> int:
+                    phone: str | None = None, title: str | None = None, requested_domain: str | None = None) -> int:
     """Sem `clinician_email`, a prática nasce sem ninguém: a pediatra entra pelo convite (`invites.py`)."""
     slug = slug.strip().lower()
     if not tenancy.SLUG.match(slug):
@@ -51,7 +63,8 @@ def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slu
     with transaction(pconn):
         pid = insert(pconn, "practices", {"slug": slug, "name": name.strip(), "registry": registry, "bio": bio,
                                           "accent": accent, "clinic_id": clinic_id, "address": address,
-                                          "phone": phone, "created_at": now_iso()})
+                                          "phone": phone, "requested_domain": requested_domain,
+                                          "created_at": now_iso()})
         if title:
             pconn.execute("UPDATE practices SET title = ? WHERE id = ?", (title.strip(), pid))
         if host:

@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from . import care, catalog, files, finance, growth, plans, practices, protocols, scheduling, views
+from . import care, catalog, files, finance, growth, invites, plans, practices, protocols, scheduling, views
 from .context import Ctx, clinician, dep, staff, staff_practices
 from .db import insert, many, now_iso, one, transaction, update
 
@@ -249,16 +249,12 @@ def new_family(body: NewFamily, ctx: Ctx = Depends(dep)):
     surname = body.child.name.strip().split()[-1] if len(body.child.name.split()) > 1 else body.guardian.name.split()[-1]
     with transaction(conn):
         fid = insert(conn, "families", {"name": body.family_name or f"Família {surname}", "created_at": now_iso()})
-        user_id = None
-        if body.guardian.email:
-            email = body.guardian.email.strip().lower()
-            user = one(ctx.pconn, "SELECT id FROM users WHERE email = ?", (email,))
-            user_id = user["id"] if user else insert(ctx.pconn, "users", {
-                "email": email, "name": body.guardian.name.strip(), "created_at": now_iso()})
-        insert(conn, "guardians", {"family_id": fid, "user_id": user_id, "name": body.guardian.name.strip(),
+        # o responsável nasce sem conta: ela só se liga a ele pelo convite da família, com a senha de quem a tem
+        # (o e-mail digitado aqui não prova nada; ligar direto entregaria a conta de outra pessoa)
+        insert(conn, "guardians", {"family_id": fid, "user_id": None, "name": body.guardian.name.strip(),
                                    "relation": body.guardian.relation, "phone": body.guardian.phone,
-                                   "email": body.guardian.email, "cpf": body.guardian.cpf, "is_legal": 1,
-                                   "is_financial": 1, "created_at": now_iso()})
+                                   "email": (body.guardian.email or "").strip().lower() or None, "cpf": body.guardian.cpf,
+                                   "is_legal": 1, "is_financial": 1, "created_at": now_iso()})
         pid = insert(conn, "patients", {"family_id": fid, "name": body.child.name.strip(), "sex": body.child.sex,
                                         "birth_date": birth.isoformat(), "gestational_weeks": body.child.gestational_weeks,
                                         "created_at": now_iso()})
@@ -292,6 +288,7 @@ def patient(patient_id: int, practice_id: int | None = None, ctx: Ctx = Depends(
     else:
         out["timeline"] = care.timeline(conn, row, ctx.today, audience="reception")
     out["charges"] = many(conn, "SELECT * FROM charges WHERE patient_id = ? ORDER BY due_on DESC LIMIT 20", (patient_id,))
+    out["family_access"] = invites.family_access(ctx.pconn, conn, practice["id"], row["family_id"])
     return out
 
 

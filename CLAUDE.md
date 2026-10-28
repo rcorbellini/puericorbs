@@ -26,7 +26,11 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 7. **O que deve acontecer com a criança sai de `care.timeline`.** A tela da família, a busca ativa e os painéis leem
    dali; lista paralela não existe.
 8. **Pedido que muda dado precisa do cabeçalho `X-PC: 1`** (a proteção contra CSRF do `server.py`).
-9. **A produção nunca recebe a demonstração.** Ela mora em `~/.local/share/puericorbs` com `demo = false`; a semente
+9. **Uma conta só se liga com a senha dela.** Toda conta nasce de um convite (`invites.py`); o cadastro não liga
+   responsável a conta nenhuma, e o link da família só troca a senha de quem é só daquela família, naquele consultório.
+10. **A administração vê números, nunca paciente.** O painel (`api_admin.py`) só conta; nenhuma rota de paciente aceita
+   quem não é da equipe ou da família do consultório.
+11. **A produção nunca recebe a demonstração.** Ela mora em `~/.local/share/puericorbs` com `demo = false`; a semente
    se recusa a rodar ali, e nenhum comando de teste ou captura aponta para ela. Comando na produção leva `--data`.
 
 ## Comandos
@@ -39,7 +43,7 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 | Servidor | `uv run puericorbs serve` (porta 8930) |
 | Domínio para uma prática | `uv run puericorbs domain HOST SLUG` |
 | Consultório novo, na produção | `uv run puericorbs --data ~/.local/share/puericorbs practice SLUG --name "…" --domain HOST` |
-| Convite (o link de primeiro acesso) | `uv run puericorbs --data ~/.local/share/puericorbs invite SLUG [--role receptionist]` |
+| Convite (o link de primeiro acesso) | `uv run puericorbs --data ~/.local/share/puericorbs invite SLUG [--role receptionist]` ou `invite --admin` |
 | Capturas das telas | `uv run -q --with playwright python scripts/qa_shots.py PASTA [filtro]` (390 e 1280 px, claro e escuro; acusa erro de JavaScript e rolagem lateral) |
 | Sintaxe do JavaScript | `cd puericorbs/web/js && for f in *.js; do node --experimental-default-type=module --check $f; done` |
 
@@ -58,7 +62,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
   no esquema e escreva a migração).
 - `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma); o `www.` volta
   para o domínio sem ele.
-- `invites.py`: o convite de primeiro acesso da equipe (token de uso único, só o hash no banco).
+- `invites.py`: os quatro convites (equipe, família, colega, administração), onde cada um abre e o registro da
+  plataforma. `api_invites.py`: abrir, aceitar e o que a pediatra e a recepção geram. `api_admin.py`: o painel.
 - `context.py`: o contexto de cada pedido (site, usuário, papel na prática) e os guardas (`staff`, `clinician`, `family`).
 - `auth.py`: senha (scrypt) e sessão (token no cookie, hash no banco).
 - `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
@@ -70,8 +75,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `seed.py`: a demonstração (tudo relativo ao dia de hoje; recusa a pasta com `demo = false`). `practices.py`: criar
   uma prática (com ou sem pediatra; sem, ela entra pelo convite).
 - `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
-  (entrada), `js/staff*.js` (equipe; o Consultório está em `staff-admin.js`), `js/family.js` (família), `js/site.js`
-  (plataforma, site público e convite), `js/lib.js`
+  (entrada), `js/staff*.js` (equipe; o Consultório e a equipe estão em `staff-admin.js`), `js/family.js` (família),
+  `js/site.js` (plataforma, site público e convite), `js/admin.js` (o painel da administração), `js/lib.js`
   (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
 
 ## Visual

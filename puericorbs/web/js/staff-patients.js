@@ -1,7 +1,7 @@
 // As crianças: a lista, a ficha (linha do cuidado, curvas, vacinas, marcos, consultas, arquivos, agenda), a consulta e
 // a caixa de revisão. A atendente vê a ficha sem nada clínico: o servidor já manda assim.
 import { api, html, raw, icon, toast, fail, dialog, ask, money, dateLong, dateBR, dateFull, initials, statusPill, fileIcon,
-  ago, actions, debounce, careTick, carePill, relDay } from './lib.js';
+  ago, actions, debounce, careTick, carePill, relDay, shareLink } from './lib.js';
 import { growthChart, bindGrowth, growthTable } from './charts.js';
 import { newAppointment, newFamily, isClinician } from './staff-common.js';
 import { setCount, refresh } from './staff.js';
@@ -67,6 +67,7 @@ export async function patient(view, params, app) {
           <h1 class="t-title">${p.name}</h1>
           <p class="muted">${p.age} (${dateFull(p.birth_date)}) · ${SEX[p.sex]}${birth ? ` · ${birth}` : ''}</p>
         </div>
+        <button class="btn ghost" type="button" data-act="access">${icon('users')}Acesso da família</button>
         ${r.clinical ? html`<button class="btn ghost" type="button" data-act="edit">Editar a ficha</button>` : ''}
         <button class="btn" type="button" data-act="book">${icon('calendar')}Agendar</button>
       </div>
@@ -85,8 +86,38 @@ export async function patient(view, params, app) {
     tab: (el) => go(el.dataset.tab),
     book: () => newAppointment(app, { patient: { id: p.id, name: p.name, first_name: p.first_name, age_short: p.age_short, plan: p.plan }, practiceId: practiceId || undefined, serviceKind: 'well_child' }, refresh),
     edit: () => editPatient(p, refresh),
+    access: () => familyAccess(r.family_access, p, practiceId),
   });
   await TABS[tab](body, r, app, refresh);
+}
+
+// Quem da família entra no app, e o link para quem ainda não entra (ou esqueceu a senha). O link vai pelo WhatsApp de
+// quem gera; o Puericorbs não manda nada sozinho.
+const ACCESS = { ativo: ['Entra no app', 'ok'], convite: ['Link enviado', 'booked'], sem: ['Ainda não entra', 'todo'] };
+
+function familyAccess(list, p, practiceId) {
+  const d = dialog({
+    title: `A família de ${p.first_name} no app`,
+    body: html`<p class="muted pretty">Cada responsável cria a própria senha por um link de uso único, que vale 7 dias. Gerar outro cancela o anterior.</p>
+      <div>${list.map((g) => {
+        const [label, cls] = ACCESS[g.state];
+        return html`<div class="li"><span class="grow" style="min-width:0"><b>${g.name}</b><span class="t-small muted" style="display:block">${[g.relation, g.phone, g.email].filter(Boolean).join(' · ')}</span>
+          <span class="pill ${cls}" style="margin-top:6px">${label}${g.state === 'convite' ? ` até ${dateBR(g.invite.expires_at)}` : ''}</span></span>
+          <button class="btn ghost small" type="button" data-g="${g.id}" data-name="${g.name}">${g.state === 'sem' ? 'Gerar o link' : 'Gerar outro link'}</button></div>`;
+      })}</div>`,
+  });
+  d.el.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-g]');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      const x = await api(`/api/staff/guardians/${b.dataset.g}/invite${practiceId ? `?practice_id=${practiceId}` : ''}`, { method: 'POST' });
+      d.close();
+      shareLink({ title: `O acesso de ${b.dataset.name.split(' ')[0]}`, link: x.link, text: x.text, phone: x.phone,
+        note: x.phone ? 'O WhatsApp abre já na conversa com o telefone do cadastro.' : 'Sem telefone no cadastro: copie o link e mande por onde a família preferir.' })
+        .el.addEventListener('close', refresh);
+    } catch (e) { b.disabled = false; fail(e); }
+  });
 }
 
 const TABS = {

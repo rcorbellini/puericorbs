@@ -86,6 +86,13 @@ que o dono fez com o karitanaves.com.br, servidores `konnor` e `susan`).
 6. **Conferir.** `curl -sI https://dominio.com.br/healthz` responde 200, e `curl -s https://dominio.com.br/api/site`
    traz o consultório certo em `practice.name`.
 
+### Pelo painel da administração
+
+O painel (`#/admin`, em qualquer domínio nosso, por exemplo https://karitanaves.com.br/#/admin) faz a parte do
+Puericorbs: **Ligar domínio** cadastra o domínio no consultório e mostra os dois CNAME a criar no Cloudflare (o destino
+vem de `tunnel_target`, no `config.toml` da produção). O consultório do colega que aceitou o convite aparece lá como
+"sem domínio", com o domínio que ele pediu.
+
 ### Para muitos pediatras: Cloudflare for SaaS
 
 Quando houver um domínio da plataforma (depende do nome) e pediatras que não queiram levar o DNS para a conta da
@@ -105,8 +112,8 @@ certificado da zona em `~/.cloudflared/cert-karitanaves.pem`), vazio. Antes de e
 
 - **Backup** da pasta `~/.local/share/puericorbs` criptografado e fora de casa, com uma restauração testada.
 - **Disco** do computador criptografado; nobreak.
-- **Entrada:** o link para a família criar a senha, limite de tentativas no login e segundo fator para quem vê
-  prontuário (ainda não existem no código).
+- **Entrada:** segundo fator para quem vê prontuário e para a administração, e recuperar a senha da equipe (ainda
+  não existem; o link da família e o limite de senha errada já existem).
 - **Termo de uso, política de privacidade e o contrato com a pediatra** (a plataforma é operadora dos dados dela),
   validados com um advogado.
 - O Cloudflare termina o HTTPS na borda: ele é suboperador e entra na política.

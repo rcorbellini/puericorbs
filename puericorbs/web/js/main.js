@@ -4,6 +4,7 @@ import { api, html, icon, fail, dialog } from './lib.js';
 import * as site from './site.js';
 import * as staff from './staff.js';
 import * as family from './family.js';
+import * as admin from './admin.js';
 
 const THEME_KEY = 'pc-theme';
 
@@ -84,8 +85,9 @@ function demoBar() {
 
 function route() {
   const s = app.site;
-  if (s.kind === 'platform') return site.platform(app);
   if (s.kind === 'unknown') return site.unknown(app);
+  if (location.hash.startsWith('#/admin')) return admin.route(app);
+  if (s.kind === 'platform') return site.platform(app);
   if (location.hash.startsWith('#/convite/')) return site.invite(app);
   if (!app.me || !app.me.role) return site.publicSite(app);
   if (app.me.role === 'guardian') return family.route(app);

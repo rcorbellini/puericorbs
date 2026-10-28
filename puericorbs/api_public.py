@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import auth, files, invites, practices, tenancy, views
+from . import auth, files, practices, tenancy, views
 from .context import ROLE_LABEL, Ctx, dep, need_user, staff_practices
-from .db import insert, many, now_iso, one, transaction, update
+from .db import many, one
 
 router = APIRouter(prefix="/api")
-EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 def practice_public(p: dict) -> dict:
@@ -33,7 +30,7 @@ def me_payload(ctx: Ctx) -> dict | None:
     return out
 
 
-def _cookie(response: Response, request: Request, name: str, value: str | None, days: int) -> None:
+def set_cookie(response: Response, request: Request, name: str, value: str | None, days: int) -> None:
     secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
     if value is None:
         response.delete_cookie(name, path="/")
@@ -88,30 +85,45 @@ class Login(BaseModel):
 
 
 def _can_enter(ctx: Ctx, user_id: int) -> bool:
+    """A equipe e a família, no site do próprio consultório; a administração, em qualquer site nosso (o painel dela
+    fica em #/admin, e ela não vê nada dos pacientes)."""
+    user = one(ctx.pconn, "SELECT is_platform_admin FROM users WHERE id = ?", (user_id,))
+    if user and user["is_platform_admin"] and ctx.site.kind in ("practice", "platform"):
+        return True
     if ctx.site.kind == "practice":
         if one(ctx.pconn, "SELECT 1 AS ok FROM memberships WHERE user_id = ? AND practice_id = ?", (user_id, ctx.practice_id)):
             return True
         return bool(one(ctx.conn, "SELECT id FROM guardians WHERE user_id = ?", (user_id,)))
-    user = one(ctx.pconn, "SELECT is_platform_admin FROM users WHERE id = ?", (user_id,))
-    return bool(user and user["is_platform_admin"])
+    return False
 
 
-def _login(ctx: Ctx, request: Request, response: Response, user: dict) -> dict:
+def password_ok(ctx: Ctx, email: str, password: str, stored: str | None) -> bool:
+    """Confere a senha contando os erros: depois de errar demais, espera 15 minutos (`auth.throttled`)."""
+    if auth.throttled(ctx.ip, email):
+        raise HTTPException(429, "Muitas tentativas com a senha errada. Espere 15 minutos e tente de novo.")
+    if auth.verify_password(password, stored):
+        return True
+    auth.failed(ctx.ip, email)
+    return False
+
+
+def login_user(ctx: Ctx, request: Request, response: Response, user: dict) -> dict:
     if not _can_enter(ctx, user["id"]):
         if ctx.site.kind == "practice":
             raise HTTPException(403, "Esta conta não tem acesso a este consultório.")
         raise HTTPException(403, "Entre pelo endereço do seu consultório.")
     token = auth.new_session(ctx.pconn, user["id"], request.headers.get("user-agent"), ctx.settings.session_days)
-    _cookie(response, request, auth.COOKIE, token, ctx.settings.session_days)
+    set_cookie(response, request, auth.COOKIE, token, ctx.settings.session_days)
     return {"ok": True}
 
 
 @router.post("/auth/login")
 def login(body: Login, request: Request, response: Response, ctx: Ctx = Depends(dep)):
-    user = one(ctx.pconn, "SELECT * FROM users WHERE email = ?", (body.email.strip().lower(),))
-    if not user or not auth.verify_password(body.password, user["password_hash"]):
+    email = body.email.strip().lower()
+    user = one(ctx.pconn, "SELECT * FROM users WHERE email = ?", (email,))
+    if not password_ok(ctx, email, body.password, user["password_hash"] if user else None) or not user:
         raise HTTPException(401, "E-mail ou senha não conferem.")
-    return _login(ctx, request, response, user)
+    return login_user(ctx, request, response, user)
 
 
 @router.post("/auth/demo")
@@ -121,76 +133,19 @@ def demo_login(body: Login, request: Request, response: Response, ctx: Ctx = Dep
     user = one(ctx.pconn, "SELECT * FROM users WHERE email = ?", (body.email.strip().lower(),))
     if not user:
         raise HTTPException(404, "Conta de demonstração não encontrada.")
-    return _login(ctx, request, response, user)
+    return login_user(ctx, request, response, user)
 
 
 @router.post("/auth/logout")
 def logout(request: Request, response: Response, ctx: Ctx = Depends(dep)):
     auth.end_session(ctx.pconn, request.cookies.get(auth.COOKIE))
-    _cookie(response, request, auth.COOKIE, None, 0)
+    set_cookie(response, request, auth.COOKIE, None, 0)
     return {"ok": True}
 
 
 @router.get("/me")
 def me(ctx: Ctx = Depends(dep)):
     return {"me": me_payload(ctx)}
-
-
-class InviteAccept(BaseModel):
-    name: str
-    email: str
-    password: str
-    practice_name: str | None = None
-    registry: str | None = None
-
-
-def _invite(ctx: Ctx, token: str) -> dict:
-    """O convite só abre no domínio do próprio consultório (nunca pela visita da demonstração)."""
-    if ctx.site.kind != "practice" or ctx.site.simulated:
-        raise HTTPException(404, "Convite não encontrado.")
-    row = invites.find(ctx.pconn, token, ctx.practice_id)
-    if not row:
-        raise HTTPException(404, "Este convite não vale mais: ele já foi usado ou venceu. Peça um novo a quem mandou.")
-    return row
-
-
-@router.get("/invite/{token}")
-def invite_info(token: str, ctx: Ctx = Depends(dep)):
-    row = _invite(ctx, token)
-    return {"role": row["role"], "role_label": ROLE_LABEL[row["role"]], "expires_at": row["expires_at"],
-            "practice": practice_public(ctx.site.practice)}
-
-
-@router.post("/invite/{token}")
-def invite_accept(token: str, body: InviteAccept, request: Request, response: Response, ctx: Ctx = Depends(dep)):
-    """Aceitar o convite: cria a conta (ou usa a que já existe, com a senha dela) e entra no consultório."""
-    row = _invite(ctx, token)
-    name, email = body.name.strip()[:80], body.email.strip().lower()
-    if not name:
-        raise HTTPException(400, "Escreva o seu nome.")
-    if not EMAIL.match(email):
-        raise HTTPException(400, "Confira o e-mail: é com ele que você vai entrar.")
-    if len(body.password) < 8:
-        raise HTTPException(400, "A senha precisa de pelo menos 8 caracteres.")
-    with transaction(ctx.pconn):
-        user = one(ctx.pconn, "SELECT * FROM users WHERE email = ?", (email,))
-        if user and not auth.verify_password(body.password, user["password_hash"]):
-            raise HTTPException(409, "Já existe uma conta com este e-mail. Para aceitar o convite com ela, use a senha dela.")
-        uid = user["id"] if user else insert(ctx.pconn, "users", {
-            "email": email, "name": name, "password_hash": auth.hash_password(body.password), "created_at": now_iso()})
-        if not invites.use(ctx.pconn, row, uid):
-            raise HTTPException(404, "Este convite acabou de ser usado. Peça um novo a quem mandou.")
-        ctx.pconn.execute("INSERT OR REPLACE INTO memberships (user_id, practice_id, role) VALUES (?, ?, ?)",
-                          (uid, ctx.practice_id, row["role"]))
-        if row["role"] == "clinician":
-            # quem é a pediatra diz como o consultório aparece no site
-            changes = {}
-            if (body.practice_name or "").strip():
-                changes["name"] = body.practice_name.strip()[:80]
-            if body.registry is not None:
-                changes["registry"] = body.registry.strip()[:80] or None
-            update(ctx.pconn, "practices", ctx.practice_id, changes)
-    return _login(ctx, request, response, one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (uid,)))
 
 
 class SitePick(BaseModel):
@@ -206,8 +161,8 @@ def pick_site(body: SitePick, request: Request, response: Response, ctx: Ctx = D
         raise HTTPException(404, "Consultório não encontrado.")
     # trocar de site é trocar de consultório: a sessão de um não vale no outro
     auth.end_session(ctx.pconn, request.cookies.get(auth.COOKIE))
-    _cookie(response, request, auth.COOKIE, None, 0)
-    _cookie(response, request, tenancy.SITE_COOKIE, body.slug, 30)
+    set_cookie(response, request, auth.COOKIE, None, 0)
+    set_cookie(response, request, tenancy.SITE_COOKIE, body.slug, 30)
     return {"ok": True}
 
 
@@ -261,7 +216,7 @@ def reset_demo(request: Request, response: Response, ctx: Ctx = Depends(dep)):
     from . import seed
     ctx.close()
     seed.run(ctx.settings, reset=True)
-    _cookie(response, request, auth.COOKIE, None, 0)
+    set_cookie(response, request, auth.COOKIE, None, 0)
     return {"ok": True}
 
 

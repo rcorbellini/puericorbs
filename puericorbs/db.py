@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-PLATFORM_VERSION = 2
+PLATFORM_VERSION = 3
 PLATFORM_SCHEMA = """
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
@@ -50,6 +50,7 @@ CREATE TABLE practices (
   phone TEXT,
   accent TEXT NOT NULL DEFAULT 'agua',
   clinic_id INTEGER REFERENCES clinics(id),
+  requested_domain TEXT,
   created_at TEXT NOT NULL
 );
 CREATE TABLE domains (
@@ -63,14 +64,34 @@ CREATE TABLE memberships (
   role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
   PRIMARY KEY (user_id, practice_id)
 );
+""" + """
+-- o convite (invites.py): da equipe de um consultório (staff), do responsável de uma família (family), de um colega
+-- que vai ter o próprio consultório (practice) e da administração da plataforma (admin)
 CREATE TABLE invites (
-  token_hash TEXT PRIMARY KEY,
-  practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
+  id INTEGER PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'staff' CHECK (kind IN ('staff', 'family', 'practice', 'admin')),
+  practice_id INTEGER REFERENCES practices(id) ON DELETE CASCADE,
+  role TEXT CHECK (role IN ('clinician', 'receptionist')),
+  guardian_id INTEGER,
+  label TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   used_at TEXT,
-  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  revoked_at TEXT,
+  new_practice_id INTEGER REFERENCES practices(id) ON DELETE SET NULL
+);
+-- o que acontece na plataforma (convites, consultórios, domínios, a administração); nunca dado de paciente
+CREATE TABLE platform_log (
+  id INTEGER PRIMARY KEY,
+  at TEXT NOT NULL,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  practice_id INTEGER REFERENCES practices(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  detail TEXT,
+  ip TEXT
 );
 """
 
@@ -87,7 +108,20 @@ def _platform_v2(conn: sqlite3.Connection) -> None:
       used_by INTEGER REFERENCES users(id) ON DELETE SET NULL)""")
 
 
-PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2}
+def _platform_v3(conn: sqlite3.Connection) -> None:
+    """Os quatro tipos de convite e o registro da plataforma. Os convites que já existem continuam valendo."""
+    conn.execute("ALTER TABLE invites RENAME TO invites_v2")
+    for stmt in ("CREATE TABLE invites", "CREATE TABLE platform_log"):
+        start = PLATFORM_SCHEMA.index(stmt)
+        conn.execute(PLATFORM_SCHEMA[start:PLATFORM_SCHEMA.index(");", start) + 1])
+    conn.execute("""INSERT INTO invites (token_hash, kind, practice_id, role, created_at, expires_at, used_at, used_by)
+                    SELECT token_hash, 'staff', practice_id, role, created_at, expires_at, used_at, used_by
+                    FROM invites_v2""")
+    conn.execute("DROP TABLE invites_v2")
+    conn.execute("ALTER TABLE practices ADD COLUMN requested_domain TEXT")
+
+
+PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3}
 
 PRACTICE_VERSION = 1
 PRACTICE_SCHEMA = """

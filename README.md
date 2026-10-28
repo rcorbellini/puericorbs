@@ -46,6 +46,7 @@ P="--data $HOME/.local/share/puericorbs"
 uv run puericorbs $P practice drafulana --name "Dra. Fulana" --domain drafulana.com.br   # o consultório, vazio
 uv run puericorbs $P invite drafulana            # o link de primeiro acesso: ela cria a senha e entra
 uv run puericorbs $P invite drafulana --role receptionist                              # o da atendente
+uv run puericorbs $P invite --admin                     # alguém da administração (o painel fica em #/admin)
 ```
 
 | Serviço (usuário do systemd) | O que é | Porta |
@@ -69,11 +70,13 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
   dentro da janela do protocolo e das regras do serviço, com o plano; a curva de crescimento, as vacinas e os marcos;
   os arquivos, com o envio de exames e fotos para a pediatra revisar.
 
-- **Entrada da equipe por convite:** a pediatra e a atendente criam a própria senha por um link de uso único, aberto no
-  domínio do consultório; a pediatra ajusta o site (nome, CRM, apresentação, endereço, telefone e cor) em
-  **Consultório**.
+- **Convites:** toda conta nasce de um link de uso único. A pediatra convida a atendente e um colega (que ganha o
+  próprio consultório) em **Consultório**, onde também ajusta o site; ela e a recepção mandam o acesso da família pela
+  ficha (**Acesso da família**, já com o WhatsApp). Uma conta que já existe só se liga com a senha dela.
+- **Administração:** o painel em `#/admin`, de qualquer site nosso, mostra os consultórios em números (nunca pacientes),
+  a equipe de cada um, os convites e o que aconteceu; liga domínios e gera os convites da plataforma.
 
-O que ainda não existe (o acesso da família na produção, recuperar a senha, cobrança automática, NFS-e, WhatsApp,
+O que ainda não existe (recuperar a senha da equipe, segundo fator, cobrança automática, NFS-e, WhatsApp automático,
 mensagens, documentos em PDF, o construtor de formulários) está no [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Documentos

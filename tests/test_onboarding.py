@@ -36,7 +36,7 @@ def convite(s, slug: str = "drateste", role: str = "clinician") -> str:
     pconn = connect_platform(s.data_dir)
     try:
         pid = one(pconn, "SELECT id FROM practices WHERE slug = ?", (slug,))["id"]
-        return invites.create(pconn, pid, role)
+        return invites.create(pconn, kind="staff", practice_id=pid, role=role)[0]
     finally:
         pconn.close()
 

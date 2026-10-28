@@ -37,7 +37,7 @@ export async function platform(app) {
             </div>
           </article>`)}
       </section>
-      ${me && me.is_platform_admin ? html`<div><button class="btn ghost" type="button" data-act="new">${icon('plus')}Novo consultório</button></div>` : ''}
+      ${me && me.is_platform_admin ? html`<div style="display:flex;flex-wrap:wrap;gap:10px"><a class="btn ghost" href="#/admin">${icon('gear')}Painel da administração</a><button class="btn ghost" type="button" data-act="new">${icon('plus')}Novo consultório</button></div>` : ''}
       ${data.demo ? html`<section class="glass card" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between">
           <div><h2 class="t-h3">Começar a demonstração de novo</h2><p class="t-small muted">Apaga o que foi feito nos testes e volta ao dia de hoje montado do zero.</p></div>
           <button class="btn danger" type="button" data-act="reset">Reiniciar a demonstração</button></section>` : ''}
@@ -102,7 +102,8 @@ export function publicSite(app) {
   const p = s.practice;
   const root = document.getElementById('app');
   const accounts = (s.demo_accounts || []).slice().sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role]);
-  const noAccess = app.me && !app.me.role;
+  const admin = app.me && !app.me.role && app.me.is_platform_admin;
+  const noAccess = app.me && !app.me.role && !admin;
   root.innerHTML = String(html`
     <div class="site">
       <header style="display:flex;align-items:center;gap:12px"><span class="logo"></span><span class="t-small muted">${s.domains?.[0] || s.host}</span></header>
@@ -115,9 +116,11 @@ export function publicSite(app) {
           ${p.address ? html`<p class="muted" style="display:flex;gap:8px;align-items:center">${icon('pin')}${p.address}</p>` : ''}
         </div>
         <div class="enter glass card" style="display:flex;flex-direction:column;gap:14px">
-          <h2 class="t-h2">Entrar</h2>
+          <h2 class="t-h2">${admin ? 'Administração' : 'Entrar'}</h2>
           ${noAccess ? html`<p class="pill late" style="height:auto;padding:8px 12px;white-space:normal">Sua conta não tem acesso a este consultório.</p>` : ''}
-          <form data-login style="display:flex;flex-direction:column;gap:10px">
+          ${admin ? html`<p class="muted pretty">Você entrou como administração da plataforma: daqui você não vê nada dos pacientes deste consultório.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px"><a class="btn" href="#/admin">${icon('gear')}Abrir o painel</a><button class="btn ghost" type="button" data-act="logout">Sair</button></div>` : ''}
+          <form data-login style="display:${admin ? 'none' : 'flex'};flex-direction:column;gap:10px">
             <label class="field">${icon('message')}<input name="email" type="email" autocomplete="username" placeholder="E-mail" aria-label="E-mail" required></label>
             <label class="field">${icon('eye')}<input name="password" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha" required></label>
             <button class="btn big wide" type="submit">Entrar</button>
@@ -143,6 +146,7 @@ export function publicSite(app) {
         </section>` : ''}
       <footer class="t-small muted" style="display:flex;align-items:center;gap:8px"><span class="logo" style="width:20px;height:20px"></span>Feito com Puericorbs</footer>
     </div>`);
+  root.querySelector('[data-act="logout"]')?.addEventListener('click', () => app.logout());
   root.querySelector('[data-login]').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const fd = new FormData(ev.target);
@@ -160,8 +164,8 @@ export function publicSite(app) {
   }));
 }
 
-// O convite: o link de primeiro acesso, aberto no domínio do consultório. A pessoa cria a conta com o e-mail e a senha
-// dela; a pediatra diz também como o consultório aparece no site.
+// O convite: um link de uso único. Quatro tipos (invites.py): a equipe e a família, no domínio do consultório; o colega
+// que vai ter o consultório dele e a administração, com a marca da plataforma.
 export async function invite(app) {
   const s = app.site;
   const root = document.getElementById('app');
@@ -180,36 +184,76 @@ export async function invite(app) {
     root.querySelector('[data-act="home"]').addEventListener('click', () => { location.hash = ''; location.reload(); });
     return;
   }
-  const p = inv.practice;
-  const doc = inv.role === 'clinician';
   const domain = s.domains?.[0] || s.host;
+  const ours = inv.kind === 'practice' || inv.kind === 'admin';  // a marca da plataforma, não a do consultório
+  const row = (label, input, sub = '') => html`<label class="row"><span class="lbl">${label}${sub ? html`<span class="sub">${sub}</span>` : ''}</span>${input}</label>`;
+  const until = html`<p class="t-small muted">O link vale uma vez só, até ${dateFull(inv.expires_at.slice(0, 10))}.</p>`;
+  const emailRow = (value = '') => row('E-mail', html`<input class="inline" name="email" type="email" autocomplete="username" placeholder="seu@email.com" value="${value}" required>`, 'para entrar');
+  const passRow = (label = 'Senha', sub = '8 ou mais caracteres', min = 8, auto = 'new-password') => row(label, html`<input class="inline" name="password" type="password" autocomplete="${auto}" minlength="${min}" placeholder="${auto === 'new-password' ? 'crie uma senha' : 'a sua senha'}" required>`, sub);
+  const nameRow = row('Seu nome', html`<input class="inline" name="name" autocomplete="name" placeholder="Nome e sobrenome" required>`);
+  let cap; let title; let lead; let more = ''; let fields; let button = 'Criar meu acesso';
+  if (inv.kind === 'staff') {
+    const doc = inv.role === 'clinician';
+    cap = `Convite · ${inv.role_label}`;
+    title = 'Crie o seu acesso';
+    lead = doc
+      ? html`Este é o site do seu consultório, em <b>${domain}</b>. Crie a sua senha e diga como o consultório aparece para as famílias.`
+      : html`Você vai cuidar da agenda, do cadastro e do dinheiro de <b>${inv.practice.name}</b>. Crie a sua senha para entrar.`;
+    if (doc) more = 'O resto (o texto de apresentação, o endereço, o telefone, a cor, os serviços e a grade) se ajusta depois, lá dentro, em Consultório e Serviços.';
+    fields = html`<div class="rows">${nameRow}${doc ? html`
+        ${row('Nome no site', html`<input class="inline" name="practice_name" value="${inv.practice.name}" required>`, 'o título do site')}
+        ${row('CRM e RQE', html`<input class="inline" name="registry" value="${inv.practice.registry || ''}" placeholder="CRM-UF 000000">`)}` : ''}</div>
+      <div class="rows">${emailRow()}${passRow()}</div>`;
+  } else if (inv.kind === 'family') {
+    const g = inv.guardian;
+    const acc = inv.account;
+    cap = `Convite · ${inv.practice.name}`;
+    title = `Olá, ${g.name.split(' ')[0]}`;
+    lead = html`Aqui você acompanha a saúde e a agenda da criança com <b>${inv.practice.name}</b>: a próxima consulta, as vacinas, o que fazer em casa, e manda exames e fotos.`;
+    if (acc && acc.keeps_password) {
+      more = 'Você já tem conta no Puericorbs: entre com a senha que já usa.';
+      fields = html`<div class="rows">${row('E-mail', html`<input class="inline" value="${acc.email}" readonly tabindex="-1">`)}${passRow('Senha', 'a que você já usa', 1, 'current-password')}</div>`;
+      button = 'Entrar';
+    } else if (acc) {
+      fields = html`<div class="rows">${row('E-mail', html`<input class="inline" value="${acc.email}" readonly tabindex="-1">`)}${passRow('Nova senha')}</div>`;
+      button = 'Criar a senha';
+    } else {
+      more = 'Se você já usa o Puericorbs em outro consultório, use o mesmo e-mail e a mesma senha.';
+      fields = html`<div class="rows">${emailRow(g.email || '')}${passRow()}</div>`;
+    }
+  } else if (inv.kind === 'practice') {
+    cap = 'Convite · Consultório próprio';
+    title = 'O seu consultório no Puericorbs';
+    lead = html`${inv.inviter ? html`<b>${inv.inviter}</b> chamou você` : 'Um convite'} para ter o seu próprio consultório: a agenda, o acompanhamento das crianças, os planos e o app das famílias, num site com o seu domínio.`;
+    more = 'Os seus pacientes são só seus: nem quem convidou nem outro consultório vê nada deles.';
+    fields = html`<div class="rows">${nameRow}
+        ${row('Nome no site', html`<input class="inline" name="practice_name" placeholder="Dra. Nome Sobrenome" required>`, 'o título do site')}
+        ${row('CRM e RQE', html`<input class="inline" name="registry" placeholder="CRM-UF 000000">`)}
+        ${row('Seu domínio', html`<input class="inline" name="domain" placeholder="drnome.com.br" autocapitalize="off" spellcheck="false">`, 'se já tiver')}</div>
+      <div class="rows">${emailRow()}${passRow()}</div>`;
+    button = 'Criar o meu consultório';
+  } else {
+    cap = 'Convite · Administração';
+    title = 'A administração da plataforma';
+    lead = 'Você vai acompanhar os consultórios, ligar os domínios e gerar convites. Nenhum dado de paciente passa por aqui.';
+    fields = html`<div class="rows">${nameRow}</div><div class="rows">${emailRow()}${passRow('Senha', '12 ou mais caracteres', 12)}</div>`;
+  }
   root.innerHTML = String(html`
     <div class="site">
-      <header style="display:flex;align-items:center;gap:12px"><span class="logo"></span><span class="t-small muted">${domain}</span></header>
+      <header style="display:flex;align-items:center;gap:12px"><span class="logo"></span>${ours ? html`<span class="wordmark">puericorbs</span>` : html`<span class="t-small muted">${domain}</span>`}</header>
       <section class="site-hero">
         <div class="intro">
-          <span class="t-cap">Convite · ${inv.role_label}</span>
-          <h1 class="site-name">Crie o seu acesso</h1>
-          ${doc
-            ? html`<p class="t-h2 pretty" style="font-weight:500;max-width:46ch">Este é o site do seu consultório, em <b>${domain}</b>. Crie a sua senha e diga como o consultório aparece para as famílias.</p>
-                <p class="muted pretty" style="max-width:52ch">O resto (o texto de apresentação, o endereço, o telefone, a cor, os serviços e a grade) se ajusta depois, lá dentro, em Consultório e Serviços.</p>`
-            : html`<p class="t-h2 pretty" style="font-weight:500;max-width:46ch">Você vai cuidar da agenda, do cadastro e do dinheiro de <b>${p.name}</b>. Crie a sua senha para entrar.</p>`}
+          <span class="t-cap">${cap}</span>
+          <h1 class="site-name">${title}</h1>
+          <p class="t-h2 pretty" style="font-weight:500;max-width:46ch">${lead}</p>
+          ${more ? html`<p class="muted pretty" style="max-width:52ch">${more}</p>` : ''}
         </div>
-        <div class="enter glass card" style="display:flex;flex-direction:column;gap:14px">
+        <div class="enter glass card" style="display:flex;flex-direction:column;gap:14px" data-card>
           <h2 class="t-h2">Seus dados</h2>
           <form data-invite style="display:flex;flex-direction:column;gap:12px">
-            <div class="rows">
-              <label class="row"><span class="lbl">Seu nome</span><input class="inline" name="name" autocomplete="name" placeholder="Nome e sobrenome" required></label>
-              ${doc ? html`
-                <label class="row"><span class="lbl">Nome no site<span class="sub">o título do site</span></span><input class="inline" name="practice_name" value="${p.name}" required></label>
-                <label class="row"><span class="lbl">CRM e RQE</span><input class="inline" name="registry" value="${p.registry || ''}" placeholder="CRM-UF 000000"></label>` : ''}
-            </div>
-            <div class="rows">
-              <label class="row"><span class="lbl">E-mail<span class="sub">para entrar</span></span><input class="inline" name="email" type="email" autocomplete="username" placeholder="seu@email.com" required></label>
-              <label class="row"><span class="lbl">Senha<span class="sub">8 ou mais caracteres</span></span><input class="inline" name="password" type="password" autocomplete="new-password" minlength="8" placeholder="crie uma senha" required></label>
-            </div>
-            <button class="btn big wide" type="submit">Criar meu acesso</button>
-            <p class="t-small muted">O link vale uma vez só, até ${dateFull(inv.expires_at.slice(0, 10))}.</p>
+            ${fields}
+            <button class="btn big wide" type="submit">${button}</button>
+            ${until}
           </form>
         </div>
       </section>
@@ -217,14 +261,21 @@ export async function invite(app) {
   root.querySelector('[data-invite]').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const body = Object.fromEntries(new FormData(ev.target));
-    const button = ev.target.querySelector('[type="submit"]');
-    button.disabled = true;
+    const submit = ev.target.querySelector('[type="submit"]');
+    submit.disabled = true;
     try {
-      await api(`/api/invite/${encodeURIComponent(token)}`, { method: 'POST', body });
-      location.hash = '';
+      const r = await api(`/api/invite/${encodeURIComponent(token)}`, { method: 'POST', body });
+      if (inv.kind === 'practice') {
+        root.querySelector('[data-card]').innerHTML = String(html`
+          <h2 class="t-h2">Pronto: ${r.practice.name} existe</h2>
+          <p class="pretty">Falta o endereço. A plataforma liga ${r.requested_domain ? html`o <b>${r.requested_domain}</b>` : 'o seu domínio'} e avisa você; depois é só entrar nele com este e-mail e esta senha.</p>
+          <p class="t-small muted pretty">Ainda não tem domínio? Registre um no registro.br (por exemplo, drnome.com.br) e mande para quem convidou.</p>`);
+        return;
+      }
+      location.hash = inv.kind === 'admin' ? '#/admin' : '';
       location.reload();
     } catch (e) {
-      button.disabled = false;
+      submit.disabled = false;
       fail(e);
     }
   });
