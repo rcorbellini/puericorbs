@@ -32,6 +32,9 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
    quem não é da equipe ou da família do consultório.
 11. **A produção nunca recebe a demonstração.** Ela mora em `~/.local/share/puericorbs` com `demo = false`; a semente
    se recusa a rodar ali, e nenhum comando de teste ou captura aponta para ela. Comando na produção leva `--data`.
+12. **A página nova chega a quem já abriu o site.** O `index.html` sai com `/static/v/<versão>/` (`server.py`), porque
+   o Cloudflare guarda .js e .css no navegador por 4 horas, até por cima do `no-cache`. Import entre módulos e `url()`
+   do CSS são sempre relativos (`./lib.js`, `fonts/…`): um caminho que começa com `/static/` escapa da versão.
 
 ## Comandos
 

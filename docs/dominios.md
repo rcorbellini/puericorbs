@@ -52,6 +52,10 @@ de pediatra não mexe no túnel.
 
 Só um domínio da mesma conta do Cloudflare consegue apontar para o túnel: um domínio de fora não chega à produção.
 
+O Cloudflare guarda no navegador os .js e .css por 4 horas, por cima do que o servidor mandar (até do `no-cache`). Por
+isso a página pede tudo por `/static/v/<versão>/`, e a versão muda a cada mudança de arquivo: depois de atualizar, não
+é preciso limpar o cache do Cloudflare nem pedir a ninguém que limpe o do celular.
+
 ## Pôr no ar o domínio de uma pediatra
 
 O caminho em uso é **uma zona por domínio**: o domínio da pediatra entra na conta do Cloudflare da plataforma (foi o

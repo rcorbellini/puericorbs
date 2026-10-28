@@ -2,17 +2,48 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope
 
 from . import api_admin, api_family, api_invites, api_public, api_staff, config, tenancy
 from .config import Settings
 
 WEB = Path(__file__).parent / "web"
+FOREVER = "public, max-age=31536000, immutable"
+
+
+def asset_version() -> str:
+    """A versão dos arquivos da página: muda quando qualquer um deles muda (nome, tamanho ou data)."""
+    h = hashlib.sha256()
+    for f in sorted(p for p in WEB.rglob("*") if p.is_file()):
+        st = f.stat()
+        h.update(f"{f.relative_to(WEB)}:{st.st_size}:{st.st_mtime_ns}\n".encode())
+    return h.hexdigest()[:10]
+
+
+class Assets(StaticFiles):
+    """Os arquivos da página, pedidos por /static/v/<versão>/… (o index.html já sai com a versão de agora).
+
+    O Cloudflare manda o navegador guardar .js e .css por 4 horas: num endereço fixo, quem abriu o site antes de uma
+    atualização ficava com o JavaScript velho, e a página nova travava em "Carregando…". Com a versão no caminho, cada
+    mudança é um endereço novo, e o import relativo (./lib.js) traz o resto dos módulos da mesma versão. O endereço da
+    versão de agora fica guardado para sempre; o sem versão (ou de uma versão vencida) é conferido a cada uso.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        parts = path.split(os.sep, 2)
+        versioned = len(parts) == 3 and parts[0] == "v"
+        response = await super().get_response(parts[2] if versioned else path, scope)
+        if response.status_code in (200, 304):
+            response.headers["Cache-Control"] = FOREVER if versioned and parts[1] == asset_version() else "no-cache"
+        return response
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -51,11 +82,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(api_staff.router)
     app.include_router(api_family.router)
     app.include_router(api_admin.router)
-    app.mount("/static", StaticFiles(directory=WEB), name="static")
+    app.mount("/static", Assets(directory=WEB), name="static")
 
     @app.get("/manifest.webmanifest", include_in_schema=False)
     def manifest():
-        return FileResponse(WEB / "manifest.webmanifest", media_type="application/manifest+json")
+        return FileResponse(WEB / "manifest.webmanifest", media_type="application/manifest+json",
+                            headers={"Cache-Control": "no-cache"})
 
     @app.get("/healthz", include_in_schema=False)
     def health():
@@ -65,7 +97,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def page(path: str):
         if path.startswith("api/"):
             return JSONResponse({"detail": "Não encontrado."}, status_code=404)
-        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache"})
+        body = (WEB / "index.html").read_text(encoding="utf-8").replace('"/static/', f'"/static/v/{asset_version()}/')
+        return HTMLResponse(body, headers={"Cache-Control": "no-cache"})
 
     return app
 

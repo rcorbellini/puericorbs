@@ -4,6 +4,15 @@
 
 ## Tomadas
 
+### 28/10/2026 — a página nova chega a quem já abriu o site
+
+29. **Os arquivos da página saem com a versão no endereço** (`/static/v/<versão>/`, em `server.py`). O link da
+    administração travou em "Carregando…" no celular do dono: o aparelho tinha aberto o site às 13:44, e o Cloudflare
+    manda o navegador guardar .js e .css por 4 horas, mesmo quando o servidor diz `no-cache`. Depois da atualização das
+    14:29, a página nova rodava o JavaScript velho, que não conhecia o convite da administração. A versão muda sempre
+    que um arquivo muda, então nenhum cache (o do navegador ou o do Cloudflare) devolve arquivo velho, e ninguém precisa
+    limpar nada depois de atualizar.
+
 ### 28/10/2026 — convites e administração
 
 24. **Quatro convites, e quem gera cada um** (`arquitetura.md`, "Como cada pessoa entra"). Pedido do dono: a pediatra

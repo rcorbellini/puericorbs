@@ -138,6 +138,8 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 - **Trabalhos de fundo** (lembretes, cobranças, notas): ainda não existem; quando vierem, um laço no próprio processo
   ou um serviço do systemd com temporizador.
 - **Página:** um PWA sem build (HTML, CSS e JavaScript puros, em módulos), como o CardLine, com o vidro claro.
+  Os arquivos saem com a versão no endereço (`/static/v/<versão>/`): uma atualização nunca esbarra no JavaScript
+  velho guardado no navegador.
 - **Arquivos:** no disco, na pasta da prática; a imagem perde o EXIF e o HEIC vira JPEG.
 - **Hospedagem:** self-hosted, num computador da casa, atrás de um túnel do Cloudflare só do Puericorbs. A produção
   (8931) e a demonstração (8930) são serviços de usuário do systemd (`deploy/`). O que isso cobra está na decisão 13 e
