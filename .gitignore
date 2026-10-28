@@ -1,0 +1,13 @@
+# segredos e dados locais: nunca no git
+.env
+.env.*
+data/
+*.db
+*.sqlite
+
+# ambiente
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
