@@ -6,7 +6,7 @@
 ## Onde estamos (28/10/2026)
 
 A **v0.1** está construída e no ar em duas instâncias (`dominios.md`): a demonstração, para validar, e a produção, com
-o consultório da primeira pediatra em karitanaves.com.br, ainda vazio, esperando o convite ser aceito.
+o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda vazio, esperando o convite ser aceito.
 
 - **Do M0, feito:** contas, práticas, papéis, isolamento por prática (um banco por prática, com os testes), auditoria,
   famílias e crianças, catálogo de serviços configurável, o vidro claro, o domínio por pediatra e a entrada por
@@ -78,7 +78,7 @@ app nativo (`funcionalidades.md`, seção 13).
 
 ## Próximos passos
 
-1. Ligar o DNS do karitanaves.com.br no túnel e mandar o convite para a primeira pediatra (`dominios.md`).
+1. Mandar o convite para a primeira pediatra (o karitanaves.com.br está no ar desde 28/10; `dominios.md`).
 2. O acesso da família na produção (o link para criar a senha) e trocar ou recuperar a senha.
 3. Antes do primeiro paciente de verdade: backup criptografado fora de casa, limite de tentativas no login, termo,
    política e o contrato com a pediatra (`dominios.md`, última seção).

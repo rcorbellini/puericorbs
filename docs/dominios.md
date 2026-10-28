@@ -100,7 +100,8 @@ Com um domínio da plataforma no Cloudflare, `base_domains = ["<plataforma>"]` n
 
 ## Antes do primeiro paciente de verdade
 
-O consultório da primeira pediatra está no ar, vazio. Antes de entrar dado de paciente:
+O consultório da primeira pediatra está no ar desde 28/10/2026 (karitanaves.com.br e www, pelo túnel, com o
+certificado da zona em `~/.cloudflared/cert-karitanaves.pem`), vazio. Antes de entrar dado de paciente:
 
 - **Backup** da pasta `~/.local/share/puericorbs` criptografado e fora de casa, com uma restauração testada.
 - **Disco** do computador criptografado; nobreak.
