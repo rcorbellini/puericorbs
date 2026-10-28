@@ -10,7 +10,7 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
 
 - **Do M0, feito:** contas, práticas, papéis, isolamento por prática (um banco por prática, com os testes), auditoria,
   famílias e crianças, catálogo de serviços configurável, o vidro claro, o domínio por pediatra e a entrada por
-  convite (equipe, família, colega e administração), o painel da administração e o limite de senha errada.
+  convite (equipe, família, colega e administração), o painel da administração (com o "vendo como") e o limite de senha errada.
   **Falta:** termo e política, segundo fator, backup fora de casa.
 - **Do M1, feito:** agenda (grade, vagas da criança doente, encaixe, recepção do dia, busca ativa), consulta com
   modelos, medidas e curvas da OMS, linha do cuidado (puericultura, vacinas, marcos), app da família, arquivos com caixa
@@ -79,11 +79,12 @@ app nativo (`funcionalidades.md`, seção 13).
 
 ## Próximos passos
 
-1. Mandar o convite para a primeira pediatra (o karitanaves.com.br está no ar desde 28/10; `dominios.md`), e o dono
-   aceitar o convite da administração.
+1. A primeira pediatra já criou a conta (28/10, no karitanaves.com.br). O dono aceita o convite da administração e
+   valida a plataforma pelo "vendo como".
 2. O domínio da plataforma (com o nome): o painel e os convites de colega saem do domínio da primeira pediatra.
-3. Antes do primeiro paciente de verdade: backup criptografado fora de casa, limite de tentativas no login, termo,
-   política e o contrato com a pediatra (`dominios.md`, última seção).
+3. Antes do primeiro paciente de verdade: backup criptografado fora de casa, termo, política, o contrato com a
+   pediatra (prevendo o acesso da administração) e a tela em que ela vê as entradas da administração (`dominios.md`,
+   última seção; `decisoes.md`, em aberto).
 4. Acompanhar a primeira pediatra e conversar com mais dois ou três (o roteiro acima).
 5. Decidir o nome e o gateway (`decisoes.md`, "Em aberto").
 6. Validar com um advogado o plano de acompanhamento, o termo e a política antes de vender.

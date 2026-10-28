@@ -23,6 +23,12 @@ export const app = {
     location.hash = '';
     location.reload();
   },
+  // a administração deixa de ver como alguém e volta ao painel (que abre em qualquer site nosso, este também)
+  async backToPanel() {
+    try { await api('/api/admin/view-as/stop', { method: 'POST' }); } catch (e) { fail(e); return; }
+    history.replaceState(null, '', '/#/admin');
+    location.reload();
+  },
   theme() { try { return localStorage.getItem(THEME_KEY) || 'claro'; } catch { return 'claro'; } },
   setTheme(value) {
     try { localStorage.setItem(THEME_KEY, value); } catch { /* sem armazenamento: vale só agora */ }
@@ -83,10 +89,24 @@ function demoBar() {
   document.body.append(bar);
 }
 
+// a faixa de quem está vendo como alguém: a página embaixo é igual à da pessoa; só a faixa diz que é a administração
+function actingBar() {
+  const a = app.me?.acting;
+  if (!a) return;
+  document.body.classList.add('acting');
+  const bar = document.createElement('div');
+  bar.className = 'actingbar';
+  bar.setAttribute('role', 'status');
+  bar.innerHTML = String(html`${icon('eye')}<span class="grow"><span class="wide">Administração · </span>Vendo como <b>${a.name}</b><span class="wide"> (${a.role_label})</span></span>
+    <button class="btn ghost small" type="button">Voltar ao painel</button>`);
+  bar.querySelector('button').addEventListener('click', () => app.backToPanel());
+  document.getElementById('app').before(bar);
+}
+
 function route() {
   const s = app.site;
   if (s.kind === 'unknown') return site.unknown(app);
-  if (location.hash.startsWith('#/admin')) return admin.route(app);
+  if (location.hash.startsWith('#/admin')) return app.me?.acting ? app.backToPanel() : admin.route(app);
   if (s.kind === 'platform') return site.platform(app);
   if (location.hash.startsWith('#/convite/')) return site.invite(app);
   if (!app.me || !app.me.role) return site.publicSite(app);
@@ -110,6 +130,7 @@ async function boot() {
     document.title = app.me ? `${app.site.practice.name} · Puericorbs` : app.site.practice.name;
   }
   demoBar();
+  actingBar();
   window.addEventListener('hashchange', route);
   route();
 }

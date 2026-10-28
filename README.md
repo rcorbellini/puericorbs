@@ -73,8 +73,9 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
 - **Convites:** toda conta nasce de um link de uso único. A pediatra convida a atendente e um colega (que ganha o
   próprio consultório) em **Consultório**, onde também ajusta o site; ela e a recepção mandam o acesso da família pela
   ficha (**Acesso da família**, já com o WhatsApp). Uma conta que já existe só se liga com a senha dela.
-- **Administração:** o painel em `#/admin`, de qualquer site nosso, mostra os consultórios em números (nunca pacientes),
-  a equipe de cada um, os convites e o que aconteceu; liga domínios e gera os convites da plataforma.
+- **Administração:** o painel em `#/admin`, de qualquer site nosso, mostra os consultórios em números, a equipe de cada
+  um, os convites e o que aconteceu; liga domínios, gera os convites da plataforma e entra em qualquer consultório
+  **vendo como** a pediatra, a atendente ou uma família, com uma faixa no topo (tudo fica no registro do consultório).
 
 O que ainda não existe (recuperar a senha da equipe, segundo fator, cobrança automática, NFS-e, WhatsApp automático,
 mensagens, documentos em PDF, o construtor de formulários) está no [`docs/roadmap.md`](docs/roadmap.md).

@@ -101,9 +101,15 @@ As regras que fecham o caminho para tomar a conta de alguém:
 
 Em `#/admin`, de qualquer site nosso (ainda não há domínio da plataforma). A administração vê os consultórios em
 números (crianças, famílias, contas da família, consultas), a equipe de cada um, os convites (menos os da família, que
-levam o nome do responsável) e o registro da plataforma (`platform_log`); liga domínios e gera os convites dela. Nunca
-abre ficha, lista de pacientes ou arquivo: as rotas de paciente pedem filiação ao consultório, e a administração não
-tem.
+levam o nome do responsável) e o registro da plataforma (`platform_log`); liga domínios e gera os convites dela.
+
+**Vendo como.** Em cada consultório, **Ver como** (numa pessoa da equipe) ou **Ver como uma família** (a busca pelo
+responsável ou pela criança) leva a administração para dentro dele, com a tela e as ações dessa pessoa e uma faixa no
+topo ("Vendo como …", **Voltar ao painel**). Como cada domínio tem a própria sessão, o painel gera um link de entrada
+(`handoffs`: 2 minutos, uso único, só no domínio daquele consultório), que liga o "vendo como" na sessão da
+administração naquele endereço (`sessions.as_*`). Lá, `ctx.user` e `ctx.role` são os da pessoa e `ctx.actor` é a
+administração; cada pedido vai para o `audit_log` do consultório com o `actor_id`. Fora do "vendo como", a
+administração não abre ficha, lista de pacientes ou arquivo. Consultório sem domínio ainda não tem onde entrar.
 
 ## As duas peças centrais
 

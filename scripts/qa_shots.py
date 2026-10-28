@@ -85,7 +85,36 @@ def shots(out: Path, only: str = "") -> int:
         def click(selector: str):
             return lambda page: page.click(selector)
 
-        m, c, a = "marina@demo.test", "carla@demo.test", "ana@demo.test"
+        def click_then(selector: str, ready: str):
+            """Clica e espera a próxima página (o link de entrada muda de endereço; voltar ao painel recarrega)."""
+            def go(page):
+                page.click(selector)
+                page.wait_for_selector(ready)
+                page.wait_for_load_state("networkidle")
+            return go
+
+        def view_as(email: str = "", family: str = ""):
+            """O link de entrada da administração no consultório 1, vendo como a conta (email) ou como uma família
+            ("com conta" ou "sem conta")."""
+            def make(ctx, base):
+                from puericorbs import config
+                from puericorbs.db import connect_platform, connect_practice, one
+                data = config.load().data_dir
+                if email:
+                    pconn = connect_platform(data)
+                    target = {"user_id": one(pconn, "SELECT id FROM users WHERE email = ?", (email,))["id"]}
+                    pconn.close()
+                else:
+                    conn = connect_practice(data, 1)
+                    cond = "IS NULL" if family == "sem conta" else "IS NOT NULL"
+                    target = {"guardian_id": one(conn, f"SELECT id FROM guardians WHERE user_id {cond} ORDER BY id LIMIT 1")["id"]}
+                    conn.close()
+                r = ctx.request.post(f"{base}/api/admin/view-as", data={"practice_id": 1, **target}, headers={"X-PC": "1"})
+                assert r.ok, (r.status, r.text())
+                return r.json()["url"].lstrip("/")
+            return make
+
+        m, c, a, adm = "marina@demo.test", "carla@demo.test", "ana@demo.test", "admin@demo.test"
         run("plataforma-1280", "localhost", "", DESK)
         run("plataforma-390", "localhost", "", PHONE)
         run("site-1280", "dramarina.localhost", "", DESK)
@@ -127,6 +156,18 @@ def shots(out: Path, only: str = "") -> int:
         run("admin-390", "localhost", "#/admin", PHONE, "admin@demo.test")
         run("admin-escuro-1280", "localhost", "#/admin", DESK, "admin@demo.test", theme="escuro")
         run("admin-no-site-390", "dramarina.localhost", "", PHONE, "admin@demo.test")
+        run("admin-familias-390", "localhost", "#/admin", PHONE, adm, after=click('[data-act="as-family"]'))
+        run("admin-familias-1280", "localhost", "#/admin", DESK, adm, after=click('[data-act="as-family"]'))
+        run("admin-entrada-vencida-390", "localhost", "#/admin/entrada-vencida", PHONE, adm)
+        run("admin-ver-como-clique-1280", "localhost", "#/admin", DESK, adm, after=click_then('[data-act="as-user"]', ".actingbar"))
+        run("vendo-como-pediatra-1280", "dramarina.localhost", "", DESK, adm, before=view_as(m))
+        run("vendo-como-pediatra-390", "dramarina.localhost", "", PHONE, adm, before=view_as(m))
+        run("vendo-como-pediatra-escuro-1280", "dramarina.localhost", "", DESK, adm, theme="escuro", before=view_as(m))
+        run("vendo-como-recepcao-390", "dramarina.localhost", "", PHONE, adm, before=view_as(c))
+        run("vendo-como-familia-390", "dramarina.localhost", "", PHONE, adm, before=view_as(family="com conta"))
+        run("vendo-como-familia-escuro-390", "dramarina.localhost", "", PHONE, adm, theme="escuro", before=view_as(family="com conta"))
+        run("vendo-como-familia-sem-conta-390", "dramarina.localhost", "", PHONE, adm, before=view_as(family="sem conta"))
+        run("vendo-como-voltar-1280", "dramarina.localhost", "", DESK, adm, before=view_as(m), after=click_then(".actingbar button", ".pcard"))
         run("recepcao-1280", "dramarina.localhost", "#/recepcao", DESK, c)
         run("recepcao-390", "dramarina.localhost", "#/recepcao", PHONE, c)
         run("recepcao-agenda-1280", "dramarina.localhost", "#/agenda", DESK, c)

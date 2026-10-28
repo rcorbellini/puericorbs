@@ -10,7 +10,7 @@ from conftest import H, client
 from fastapi.testclient import TestClient
 
 from puericorbs import config, invites
-from puericorbs.db import connect_platform, connect_practice, one
+from puericorbs.db import PLATFORM_VERSION, connect_platform, connect_practice, one
 from puericorbs.server import create_app
 
 
@@ -47,7 +47,7 @@ def admin(s, host: str = "dramarina.localhost") -> TestClient:
 
 
 def test_migracao_mantem_o_convite_que_ja_existia(tmp_path):
-    """O banco da plataforma da versão 2 (o convite da primeira pediatra já mandado) passa à 3 sem perder o link."""
+    """O banco da plataforma da versão 2 (o convite da primeira pediatra já mandado) passa à atual sem perder o link."""
     s = config.load(tmp_path)
     path = tmp_path / "platform.db"
     old = sqlite3.connect(path)
@@ -74,7 +74,7 @@ def test_migracao_mantem_o_convite_que_ja_existia(tmp_path):
     old.commit()
     old.close()
     pconn = connect_platform(s.data_dir)
-    assert pconn.execute("PRAGMA user_version").fetchone()[0] == 3
+    assert pconn.execute("PRAGMA user_version").fetchone()[0] == PLATFORM_VERSION
     row = invites.find(pconn, "o-link-dela")
     assert row and row["kind"] == "staff" and row["role"] == "clinician" and row["practice_id"] == 1
     pconn.close()
@@ -217,7 +217,7 @@ def test_colega_ganha_o_proprio_consultorio_e_ninguem_ve_o_do_outro(fresh):
     assert j.get("/api/staff/patients?practice_id=1").status_code == 404
 
 
-def test_painel_da_administracao_ve_numeros_e_nunca_pacientes(fresh):
+def test_painel_mostra_numeros_e_a_ficha_so_abre_vendo_como(fresh):
     dono = admin(fresh)
     assert dono.get("/api/me").json()["me"]["is_platform_admin"] is True
     texto = dono.get("/api/admin/overview").text
@@ -226,7 +226,7 @@ def test_painel_da_administracao_ve_numeros_e_nunca_pacientes(fresh):
     assert marina["metrics"]["patients"] > 5 and marina["has_clinician"]
     for nome in ("Helena", "Theo", "Alice", "Ana Costa"):
         assert nome not in texto
-    # a administração não abre ficha nem lista de pacientes
+    # sem o "vendo como" (test_view_as.py), a administração não abre ficha nem lista de pacientes
     assert dono.get("/api/staff/patients").status_code == 403
     assert dono.get("/api/family/home").status_code == 403
     # e quem não é da administração não vê o painel

@@ -18,7 +18,8 @@
 | Família | `family` | o grupo de responsáveis e crianças |
 | Responsável | `guardian` | o adulto ligado à família, com papéis `legal`, `financial` e `caregiver` |
 | Convite | `invite` | o link de uso único com que alguém cria a conta: equipe (`staff`), família (`family`), colega com consultório próprio (`practice`) e administração (`admin`) |
-| Administração da plataforma | `is_platform_admin`, painel `#/admin` | quem acompanha os consultórios e liga os domínios; nunca vê paciente |
+| Administração da plataforma | `is_platform_admin`, painel `#/admin` | quem acompanha os consultórios, liga os domínios e entra em cada um vendo como quem usa |
+| Vendo como | `ctx.actor`, `handoffs`, `sessions.as_*` | a administração dentro de um consultório com a tela e as ações de alguém dele; a faixa no topo avisa, e o registro guarda quem estava de fato |
 | Paciente, criança | `patient` | a criança atendida |
 | Vínculo | `care_link` | a ligação criança × prática que dá acesso |
 | Cobertura | `coverage_grant` | o empréstimo temporário de pacientes a outro pediatra |

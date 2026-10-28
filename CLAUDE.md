@@ -28,8 +28,11 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 8. **Pedido que muda dado precisa do cabeçalho `X-PC: 1`** (a proteção contra CSRF do `server.py`).
 9. **Uma conta só se liga com a senha dela.** Toda conta nasce de um convite (`invites.py`); o cadastro não liga
    responsável a conta nenhuma, e o link da família só troca a senha de quem é só daquela família, naquele consultório.
-10. **A administração vê números, nunca paciente.** O painel (`api_admin.py`) só conta; nenhuma rota de paciente aceita
-   quem não é da equipe ou da família do consultório.
+10. **A administração vê como quem usa, e fica registrado.** O painel (`api_admin.py`) só conta; a ficha, a agenda e o
+   app da família ela vê entrando no consultório **vendo como** a pediatra, a atendente ou uma família, com a faixa no
+   topo. Lá, `ctx.user` e `ctx.role` são os da pessoa e `ctx.actor` é a administração (`context.py`): cada pedido vai
+   para o `audit_log` do consultório com o `actor_id`. Fora disso, nenhuma rota de paciente aceita a administração, e o
+   nome de família nunca vai para o banco da plataforma.
 11. **A produção nunca recebe a demonstração.** Ela mora em `~/.local/share/puericorbs` com `demo = false`; a semente
    se recusa a rodar ali, e nenhum comando de teste ou captura aponta para ela. Comando na produção leva `--data`.
 12. **A página nova chega a quem já abriu o site.** O `index.html` sai com `/static/v/<versão>/` (`server.py`), porque
@@ -66,8 +69,9 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma); o `www.` volta
   para o domínio sem ele.
 - `invites.py`: os quatro convites (equipe, família, colega, administração), onde cada um abre e o registro da
-  plataforma. `api_invites.py`: abrir, aceitar e o que a pediatra e a recepção geram. `api_admin.py`: o painel.
-- `context.py`: o contexto de cada pedido (site, usuário, papel na prática) e os guardas (`staff`, `clinician`, `family`).
+  plataforma. `api_invites.py`: abrir, aceitar e o que a pediatra e a recepção geram. `api_admin.py`: o painel e o "vendo como" (o link de entrada, `handoffs`).
+- `context.py`: o contexto de cada pedido (site, usuário, papel na prática e, com a administração vendo como alguém,
+  `actor`) e os guardas (`staff`, `clinician`, `family`).
 - `auth.py`: senha (scrypt) e sessão (token no cookie, hash no banco).
 - `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
 - `protocols.py`: puericultura, vacinas (PNI) e marcos. `care.py`: a linha do cuidado. `growth.py`: as curvas da OMS

@@ -95,7 +95,8 @@ que o dono fez com o karitanaves.com.br, servidores `konnor` e `susan`).
 O painel (`#/admin`, em qualquer domínio nosso, por exemplo https://karitanaves.com.br/#/admin) faz a parte do
 Puericorbs: **Ligar domínio** cadastra o domínio no consultório e mostra os dois CNAME a criar no Cloudflare (o destino
 vem de `tunnel_target`, no `config.toml` da produção). O consultório do colega que aceitou o convite aparece lá como
-"sem domínio", com o domínio que ele pediu.
+"sem domínio", com o domínio que ele pediu. No mesmo painel, **Ver como** entra no consultório pelo domínio dele, com a
+tela de quem usa; consultório sem domínio ainda não tem onde entrar.
 
 ### Para muitos pediatras: Cloudflare for SaaS
 
@@ -120,4 +121,6 @@ certificado da zona em `~/.cloudflared/cert-karitanaves.pem`), vazio. Antes de e
   não existem; o link da família e o limite de senha errada já existem).
 - **Termo de uso, política de privacidade e o contrato com a pediatra** (a plataforma é operadora dos dados dela),
   validados com um advogado.
+- **O "vendo como" da administração** previsto no contrato, e a pediatra vendo na tela dela quando a administração
+  entrou (o `audit_log` com o `actor_id` já guarda; falta a tela).
 - O Cloudflare termina o HTTPS na borda: ele é suboperador e entra na política.

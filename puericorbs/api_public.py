@@ -27,6 +27,9 @@ def me_payload(ctx: Ctx) -> dict | None:
                             for p in staff_practices(ctx)]
     if ctx.role == "guardian":
         out["guardian"] = {"name": ctx.guardians[0]["name"], "relation": ctx.guardians[0]["relation"]}
+    if ctx.actor:  # a faixa "vendo como" da página
+        out["acting"] = {"admin": ctx.actor["name"], "role_label": out["role_label"],
+                         "name": out["guardian"]["name"] if ctx.role == "guardian" else ctx.user["name"]}
     return out
 
 
@@ -86,7 +89,7 @@ class Login(BaseModel):
 
 def _can_enter(ctx: Ctx, user_id: int) -> bool:
     """A equipe e a família, no site do próprio consultório; a administração, em qualquer site nosso (o painel dela
-    fica em #/admin, e ela não vê nada dos pacientes)."""
+    fica em #/admin; a ficha, ela só vê entrando como alguém do consultório)."""
     user = one(ctx.pconn, "SELECT is_platform_admin FROM users WHERE id = ?", (user_id,))
     if user and user["is_platform_admin"] and ctx.site.kind in ("practice", "platform"):
         return True

@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-PLATFORM_VERSION = 3
+PLATFORM_VERSION = 4
 PLATFORM_SCHEMA = """
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
@@ -27,12 +27,17 @@ CREATE TABLE users (
   is_platform_admin INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
+-- as_*: a administração vendo como alguém de um consultório (context.py): a equipe pela conta, a família pelo
+-- responsável (comentário fora da tabela: dentro dela, o SQLite não consegue mais apagar coluna)
 CREATE TABLE sessions (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL,
   expires_at TEXT NOT NULL,
-  user_agent TEXT
+  user_agent TEXT,
+  as_practice_id INTEGER,
+  as_user_id INTEGER,
+  as_guardian_id INTEGER
 );
 CREATE TABLE clinics (
   id INTEGER PRIMARY KEY,
@@ -93,7 +98,25 @@ CREATE TABLE platform_log (
   detail TEXT,
   ip TEXT
 );
+-- o link que leva a administração para dentro de um consultório, vendo como alguém dele (api_admin.py): de uso único
+-- e curto, porque cada domínio tem a própria sessão e o painel pode estar em outro
+CREATE TABLE handoffs (
+  token_hash TEXT PRIMARY KEY,
+  admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  as_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  as_guardian_id INTEGER,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
 """
+
+
+def _table(schema: str, name: str) -> str:
+    """O CREATE TABLE de uma tabela, tirado do esquema atual (a migração cria igual a um banco novo)."""
+    start = schema.index(f"CREATE TABLE {name} (")
+    return schema[start:schema.index(");", start) + 1]
 
 
 def _platform_v2(conn: sqlite3.Connection) -> None:
@@ -111,9 +134,8 @@ def _platform_v2(conn: sqlite3.Connection) -> None:
 def _platform_v3(conn: sqlite3.Connection) -> None:
     """Os quatro tipos de convite e o registro da plataforma. Os convites que já existem continuam valendo."""
     conn.execute("ALTER TABLE invites RENAME TO invites_v2")
-    for stmt in ("CREATE TABLE invites", "CREATE TABLE platform_log"):
-        start = PLATFORM_SCHEMA.index(stmt)
-        conn.execute(PLATFORM_SCHEMA[start:PLATFORM_SCHEMA.index(");", start) + 1])
+    for name in ("invites", "platform_log"):
+        conn.execute(_table(PLATFORM_SCHEMA, name))
     conn.execute("""INSERT INTO invites (token_hash, kind, practice_id, role, created_at, expires_at, used_at, used_by)
                     SELECT token_hash, 'staff', practice_id, role, created_at, expires_at, used_at, used_by
                     FROM invites_v2""")
@@ -121,9 +143,16 @@ def _platform_v3(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE practices ADD COLUMN requested_domain TEXT")
 
 
-PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3}
+def _platform_v4(conn: sqlite3.Connection) -> None:
+    """A administração vendo como alguém de um consultório: a sessão guarda quem, e o link de entrada leva até lá."""
+    for col in ("as_practice_id", "as_user_id", "as_guardian_id"):
+        conn.execute(f"ALTER TABLE sessions ADD COLUMN {col} INTEGER")
+    conn.execute(_table(PLATFORM_SCHEMA, "handoffs"))
 
-PRACTICE_VERSION = 1
+
+PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4}
+
+PRACTICE_VERSION = 2
 PRACTICE_SCHEMA = """
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
@@ -348,6 +377,7 @@ CREATE TABLE expenses (
   spent_on TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+-- quem viu e fez o quê; actor_id é quem estava de fato, quando a administração entra vendo como alguém (user_id)
 CREATE TABLE audit_log (
   id INTEGER PRIMARY KEY,
   at TEXT NOT NULL,
@@ -356,10 +386,20 @@ CREATE TABLE audit_log (
   action TEXT NOT NULL,
   entity TEXT,
   entity_id INTEGER,
-  ip TEXT
+  ip TEXT,
+  actor_id INTEGER,
+  detail TEXT
 );
 """
-PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+
+
+def _practice_v2(conn: sqlite3.Connection) -> None:
+    """O registro guarda quem estava de fato quando a administração entra vendo como alguém."""
+    conn.execute("ALTER TABLE audit_log ADD COLUMN actor_id INTEGER")
+    conn.execute("ALTER TABLE audit_log ADD COLUMN detail TEXT")
+
+
+PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2}
 
 
 def now_iso(tz=None) -> str:

@@ -4,6 +4,18 @@
 
 ## Tomadas
 
+### 28/10/2026 — a administração vendo como quem usa
+
+30. **A administração entra em qualquer consultório vendo como alguém dele** (substitui o "nunca paciente" da 27).
+    Pedido do dono: "eu vejo tudo da mesma forma que ela veria e tenho as mesmas ações; a diferença é só o painel que
+    fica avisando". A administração é o perfil de maior controle, e o dono vai validar a plataforma por ela. Vale para a
+    pediatra, a atendente e qualquer família, com conta ou ainda sem (aí a tela é a que a família vai ver). A tela e as
+    regras são as da pessoa; o registro guarda quem estava de fato: cada pedido vai para o `audit_log` do consultório
+    com o `actor_id`, e a entrada vai também para o registro da plataforma, sem o nome da família (que não sai do banco
+    do consultório). O que a administração faz como a pediatra fica no nome dela na tela, como se ela tivesse feito; só
+    o registro diz que foi a administração. Numa família ainda sem conta, fica no nome da administração. A entrada
+    passa por um link de 2 minutos e uso único, porque cada domínio tem a própria sessão.
+
 ### 28/10/2026 — a página nova chega a quem já abriu o site
 
 29. **Os arquivos da página saem com a versão no endereço** (`/static/v/<versão>/`, em `server.py`). O link da
@@ -98,6 +110,8 @@
 |---|---|---|
 | Nome do produto | "Puericorbs" (provisório) ou outro | decidir antes de registrar o domínio da plataforma e a marca |
 | Domínio da plataforma | nenhum (hoje o painel e os convites de colega abrem no domínio de uma pediatra); um domínio com o nome | registrar junto com o nome: o painel e os convites de colega vão para ele (uma linha no `config.toml`) |
+| A pediatra ver as entradas da administração | numa tela dela (o `audit_log` com o `actor_id`, em Consultório); só quando ela pedir | na tela dela, antes do primeiro paciente de verdade: os dados são dela, e a transparência é a contrapartida do "vendo como" |
+| O contrato prever o acesso da plataforma | sim, para suporte e validação, com registro; não | sim: pela LGPD, a plataforma opera os dados que a pediatra controla; validar com advogado |
 | Recuperar a senha da equipe | link por e-mail; a administração gera um link de troca | link por e-mail quando houver envio de e-mail; até lá, falar com a plataforma |
 | Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
 | Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |

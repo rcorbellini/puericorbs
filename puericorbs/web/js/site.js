@@ -235,7 +235,7 @@ export async function invite(app) {
   } else {
     cap = 'Convite · Administração';
     title = 'A administração da plataforma';
-    lead = 'Você vai acompanhar os consultórios, ligar os domínios e gerar convites. Nenhum dado de paciente passa por aqui.';
+    lead = 'Você vai acompanhar os consultórios, entrar em cada um vendo como quem usa, ligar os domínios e gerar convites.';
     fields = html`<div class="rows">${nameRow}</div><div class="rows">${emailRow()}${passRow('Senha', '12 ou mais caracteres', 12)}</div>`;
   }
   root.innerHTML = String(html`

@@ -1,17 +1,22 @@
 // O painel da administração da plataforma (#/admin, em qualquer site nosso): os consultórios em números, a equipe de
-// cada um, os convites e o que aconteceu. Nunca um nome de criança ou de família: isso é de cada consultório.
-import { api, html, icon, fail, toast, dialog, ask, askFields, initials, dateBR, shareLink } from './lib.js';
+// cada um, os convites e o que aconteceu. A ficha e o app da família, a administração vê entrando no consultório
+// "vendo como" alguém dele (a faixa no topo da página é do main.js); tudo o que ela faz lá fica no registro dele.
+import { api, html, icon, fail, toast, dialog, ask, askFields, initials, dateBR, shareLink, debounce } from './lib.js';
 
 const ACCENT_HEX = { agua: '#08746b', azul: '#1f5fbf', coral: '#b8452a', lavanda: '#5b47c4' };
 const STATUS = { pendente: ['Pendente', 'booked'], aceito: ['Aceito', 'ok'], cancelado: ['Cancelado', ''], vencido: ['Venceu', 'todo'] };
 const ACTION = {
   convite_gerado: 'Convite gerado', convite_aceito: 'Convite aceito', convite_cancelado: 'Convite cancelado',
   consultorio_criado: 'Consultório criado', dominio_ligado: 'Domínio ligado', equipe_removida: 'Acesso tirado',
-  admin_entrou: 'Nova pessoa na administração',
+  admin_entrou: 'Nova pessoa na administração', vendo_como: 'Entrou vendo como',
 };
 
 export async function route(app) {
   const root = document.getElementById('app');
+  if (location.hash === '#/admin/entrada-vencida') {
+    history.replaceState(null, '', '#/admin');
+    toast('O link de entrada venceu ou já foi usado. Entre de novo pelo painel.', 'err');
+  }
   if (!app.me || !app.me.is_platform_admin) { login(app, root); return; }
   let d;
   try {
@@ -35,7 +40,7 @@ function login(app, root) {
             <label class="field">${icon('eye')}<input name="password" type="password" autocomplete="current-password" placeholder="Senha" aria-label="Senha" required></label>
             <button class="btn big wide" type="submit">Entrar</button>
           </form>`}
-        <p class="t-small muted pretty">A conta da administração nasce de um convite. Daqui se acompanham os consultórios, nunca os pacientes.</p>
+        <p class="t-small muted pretty">A conta da administração nasce de um convite. Daqui se acompanham os consultórios e se entra em cada um, vendo como quem usa.</p>
       </div>
     </div>`);
   root.querySelector('[data-act="logout"]')?.addEventListener('click', () => app.logout());
@@ -65,13 +70,16 @@ function practiceCard(p) {
       ${p.domains.length ? '' : html`<span class="pill todo long">${icon('alert')}Sem domínio${p.requested_domain ? `: pediu ${p.requested_domain}` : ''}</span>`}
     </div>
     <div class="rows">
-      ${p.members.length ? p.members.map((x) => html`<div class="row"><span class="lbl">${x.name}<span class="sub">${x.role_label} · ${x.email}</span></span><span class="t-small muted" style="text-align:right">${x.last_login ? `entrou ${dateBR(x.last_login)}` : 'não entrou'}</span></div>`)
+      ${p.members.length ? p.members.map((x) => html`<div class="row"><span class="lbl">${x.name}<span class="sub">${x.role_label} · ${x.email} · ${x.last_login ? `entrou ${dateBR(x.last_login)}` : 'não entrou'}</span></span>
+          ${p.can_enter ? html`<button class="btn ghost small" type="button" data-act="as-user" data-id="${p.id}" data-user="${x.id}">${icon('eye')}Ver como</button>` : ''}</div>`)
         : html`<div class="row"><span class="lbl">Ninguém ainda<span class="sub">quem atende entra pelo convite</span></span></div>`}
     </div>
     <p class="t-small pretty">${n(m.patients, 'criança', 'crianças')} · ${n(m.families, 'família', 'famílias')} (${m.family_accounts} no app) · ${n(m.visits_30d, 'consulta', 'consultas')} em 30 dias · ${m.next_7d} nos próximos 7${p.pending_invites ? ` · ${n(p.pending_invites, 'convite pendente', 'convites pendentes')}` : ''}</p>
-    <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+      ${p.can_enter && m.families ? html`<button class="btn ghost small" type="button" data-act="as-family" data-id="${p.id}">${icon('users')}Ver como uma família</button>` : ''}
       <button class="btn ghost small" type="button" data-act="domain" data-id="${p.id}">${icon('globe')}Ligar domínio</button>
       ${p.has_clinician ? '' : html`<button class="btn ghost small" type="button" data-act="inv-clinician" data-id="${p.id}">${icon('link')}Convite: pediatra</button>`}
+      ${p.can_enter ? '' : html`<span class="t-small muted">Para entrar nele, ligue um domínio.</span>`}
     </div>
   </article>`;
 }
@@ -132,14 +140,53 @@ function render(app, root, d) {
     </div>`);
   root.onclick = (ev) => {
     const b = ev.target.closest('[data-act]');
-    if (b) act(app, b.dataset.act, Number(b.dataset.id) || null, d);
+    if (b) act(app, b.dataset.act, Number(b.dataset.id) || null, d, b);
   };
 }
 
-async function act(app, what, id, d) {
+// entrar no consultório vendo como alguém: o link de entrada abre no endereço dele (cada domínio tem a própria sessão)
+async function enter(body) {
+  const r = await api('/api/admin/view-as', { method: 'POST', body });
+  location.href = r.url;
+}
+
+function pickFamily(p) {
+  const d = dialog({
+    title: 'Ver como uma família',
+    body: html`<p class="t-small muted pretty">De ${p.name}. Com conta ou ainda sem: você vê o app como a família vê (ou vai ver).</p>
+      <label class="field">${icon('search')}<input name="q" type="search" placeholder="Nome do responsável ou da criança" aria-label="Buscar a família" autocomplete="off"></label>
+      <div class="opts" data-list style="margin-top:12px"><p class="empty">Carregando…</p></div>`,
+  });
+  const list = d.el.querySelector('[data-list]');
+  const load = async (q) => {
+    try {
+      const r = await api(`/api/admin/practices/${p.id}/families?q=${encodeURIComponent(q)}`);
+      list.innerHTML = String(html`${r.guardians.length ? r.guardians.map((g) => html`<button class="opt" type="button" data-g="${g.id}">
+          <span class="av sm">${initials(g.name)}</span>
+          <span class="grow" style="min-width:0"><b>${g.name}</b> <span class="t-small muted">${g.relation}</span>
+            <span class="t-small muted" style="display:block">${[g.children.join(', '), g.account ? 'entra no app' : 'ainda sem conta'].filter(Boolean).join(' · ')}</span></span>
+        </button>`) : html`<p class="empty">Nenhuma família com esse nome.</p>`}`);
+    } catch (e) { fail(e); }
+  };
+  d.el.querySelector('input').addEventListener('input', debounce((ev) => load(ev.target.value.trim()), 250));
+  list.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-g]');
+    if (!b) return;
+    b.disabled = true;
+    try { await enter({ practice_id: p.id, guardian_id: Number(b.dataset.g) }); } catch (e) { b.disabled = false; fail(e); }
+  });
+  load('');
+}
+
+async function act(app, what, id, d, el) {
   const again = () => route(app);
   try {
     if (what === 'logout') return app.logout();
+    if (what === 'as-user') {
+      el.disabled = true;
+      try { await enter({ practice_id: id, user_id: Number(el.dataset.user) }); } finally { el.disabled = false; }
+    }
+    if (what === 'as-family') pickFamily(d.practices.find((x) => x.id === id));
     if (what === 'theme') {
       app.setTheme({ claro: 'escuro', escuro: 'auto', auto: 'claro' }[app.theme()]);
       return again();
@@ -154,7 +201,7 @@ async function act(app, what, id, d) {
         note: 'Quando o convite for aceito, o consultório aparece aqui, esperando o domínio.' }).el.addEventListener('close', again);
     }
     if (what === 'inv-admin') {
-      if (!await ask('Convidar alguém para a administração?', 'Quem aceitar vê todos os consultórios (sem os pacientes), liga domínios e gera convites, inclusive outros de administração.', 'Gerar o link')) return;
+      if (!await ask('Convidar alguém para a administração?', 'Quem aceitar acompanha todos os consultórios, entra em cada um vendo como quem usa, liga domínios e gera convites, inclusive outros de administração.', 'Gerar o link')) return;
       const r = await api('/api/admin/invites', { method: 'POST', body: { kind: 'admin' } });
       shareLink({ title: 'Convite: administração', link: r.link, note: 'A senha da administração tem 12 ou mais caracteres.' }).el.addEventListener('close', again);
     }
