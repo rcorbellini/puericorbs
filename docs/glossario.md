@@ -93,7 +93,7 @@
 | Régua de cobrança | `dunning` | os avisos antes e depois do vencimento |
 | Inadimplência | `delinquency` | |
 | Receita recorrente mensal | `mrr` | |
-| Assinatura do Pueri | `platform_subscription` | o que a prática paga ao Pueri (nunca "plano", para não confundir com o do pediatra) |
+| Assinatura do Puericorbs | `platform_subscription` | o que a prática paga ao Puericorbs (nunca "plano", para não confundir com o do pediatra) |
 
 ## Conversa e plataforma
 

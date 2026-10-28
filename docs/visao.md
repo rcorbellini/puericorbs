@@ -1,6 +1,6 @@
 # Visão do produto
 
-> 28/10/2026 · descoberta. "Pueri" é nome de trabalho.
+> 28/10/2026 · descoberta. "Puericorbs" é nome de trabalho.
 
 ## O problema
 
@@ -59,14 +59,14 @@ Onde cada pedido vira funcionalidade, e o que propomos a mais, está em `funcion
 4. **O que deve acontecer vira item com data.** Consulta do protocolo, vacina, exame pedido, retorno, tarefa: tudo é
    um item do cuidado, com dono e prazo. É ele que alimenta a tela da família, os lembretes e a busca ativa.
 5. **Menos WhatsApp, não zero WhatsApp.** O lembrete vai pelo canal que a família já lê; a conversa clínica, os
-   arquivos e os documentos ficam no Pueri, organizados por criança.
+   arquivos e os documentos ficam no Puericorbs, organizados por criança.
 6. **Primeiro o consultório de um pediatra só.** O que funciona para um pediatra e uma atendente escala para a
    clínica. O contrário não vale.
 7. **Celular primeiro para a família; computador e celular para o consultório.**
 8. **Conformidade desenhada no modelo.** Dado de saúde de criança (LGPD), guarda do prontuário, sigilo do
    adolescente, guarda compartilhada: entram no desenho dos dados, não num remendo depois.
 
-## O que o Pueri não é
+## O que o Puericorbs não é
 
 - **Não é plano de saúde.** O plano de acompanhamento é um pacote de serviços do próprio pediatra. Não cobre urgência,
   internação nem exames de terceiros.
@@ -80,6 +80,6 @@ Hipóteses para medir com os pilotos (os números se calibram com eles):
 
 - O pediatra e a atendente passam 30 dias sem voltar ao caderno, à planilha nem ao WhatsApp para agendar.
 - As faltas caem depois da confirmação automática.
-- A família abre o Pueri entre uma consulta e outra, para ver o que vem, mandar um exame ou baixar um documento.
+- A família abre o Puericorbs entre uma consulta e outra, para ver o que vem, mandar um exame ou baixar um documento.
 - A cobrança do plano roda sozinha: a atendente só trata exceção.
 - O pediatra fecha o mês sem montar planilha para o contador.

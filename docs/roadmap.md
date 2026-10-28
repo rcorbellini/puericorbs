@@ -52,7 +52,7 @@ arquivo para o contador.
 ### M3 — A clínica e o SaaS aberto
 
 Várias práticas numa clínica, atendente compartilhada, salas, repasse, gestor, cobertura entre pediatras, pediatra em
-várias clínicas, página pública, cadastro sozinho com teste grátis, assinatura do Pueri.
+várias clínicas, página pública, cadastro sozinho com teste grátis, assinatura do Puericorbs.
 
 **Pronto quando:** uma clínica com dois pediatras roda um mês com o repasse automático, e um pediatra novo se
 cadastra e atende sem a nossa ajuda.

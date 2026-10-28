@@ -29,7 +29,7 @@ SaaS aberto · `Depois` explorar.
 4. **Resumo para a família separado do registro clínico.** O pediatra escreve à vontade no prontuário e libera para
    a família só o resumo e os próximos passos. (3)
 5. **Caixa de revisão.** Exame pedido → resultado enviado pela família → revisado com comentário → família avisada. O
-   ciclo fecha no Pueri, não no WhatsApp. (3, 6)
+   ciclo fecha no Puericorbs, não no WhatsApp. (3, 6)
 6. **Vários responsáveis, com papéis.** Mãe, pai, avó, babá: cada um com o seu acesso. O responsável financeiro
    recebe a nota no CPF dele, o cuidador só vê a agenda e as orientações, e a guarda compartilhada é respeitada por
    padrão. (5)
@@ -75,7 +75,7 @@ SaaS aberto · `Depois` explorar.
 
 **Pedido:** cada serviço precisa ser customizado.
 
-O serviço é a unidade de configuração do Pueri: a agenda, o preço, o plano, o prontuário e a nota fiscal leem dele.
+O serviço é a unidade de configuração do Puericorbs: a agenda, o preço, o plano, o prontuário e a nota fiscal leem dele.
 Exemplos de um consultório pediátrico: primeira consulta do recém-nascido, puericultura, intercorrência (doença
 aguda), retorno, consulta pré-natal pediátrica (com a gestante), visita domiciliar, teleconsulta, avaliação de
 amamentação, teste da linguinha, pequenos procedimentos, relatório para a escola.
@@ -179,7 +179,7 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 - `M0` Armazenamento criptografado, links que expiram, antivírus e limite de espaço por assinatura.
 - `Depois` Ler o PDF do exame e sugerir os valores (hemoglobina, ferritina…) para um gráfico de evolução, com a
   confirmação do pediatra.
-- `Depois` Encaminhar do WhatsApp para o número do Pueri e o arquivo cair na criança certa.
+- `Depois` Encaminhar do WhatsApp para o número do Puericorbs e o arquivo cair na criança certa.
 
 ## 7. Financeiro
 
@@ -188,7 +188,7 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 - `M1` Recebimento por atendimento: forma (PIX, cartão, dinheiro, plano, cortesia), parcelas, desconto, quem recebeu.
 - `M1` Caixa da recepção: abrir, fechar e conferir o dia.
 - `M1` Recibo. `M2` Nota fiscal de serviço (NFS-e) automática, por um provedor, para quem atende como PJ.
-- `M2` **Receita Saúde** para quem atende como pessoa física (obrigatório desde 2025): o Pueri prepara os dados e
+- `M2` **Receita Saúde** para quem atende como pessoa física (obrigatório desde 2025): o Puericorbs prepara os dados e
   lembra de emitir; integração direta se a Receita abrir uma API.
 - `M2` **Kit reembolso:** a nota ou o recibo no CPF de quem pagou, com o nome da criança, CRM e RQE, data e serviço e,
   se a família pedir, o relatório com CID. É o que o convênio exige para reembolsar.
@@ -258,13 +258,13 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
   criptografia.
 - `M0` LGPD: termo e política, encarregado, pedidos do titular (acesso, correção, portabilidade), base legal
   registrada por tratamento.
-- `M0` O suporte do Pueri não vê dado clínico; só com autorização registrada da prática.
+- `M0` O suporte do Puericorbs não vê dado clínico; só com autorização registrada da prática.
 - `M1` Modelos mantidos pela plataforma: protocolos, calendários, formulários e orientações.
 - `M2` Marca da prática: logo e cor de destaque dentro da identidade.
 - `M2` Exportação completa: o pediatra sai com os seus dados.
 - `M3` Cadastro sozinho, com teste grátis e roteiro de primeiros passos (serviços a partir dos modelos, grade,
   convidar a atendente, importar pacientes de planilha). Até lá, o piloto é configurado à mão.
-- `M3` Assinatura do Pueri por pediatra; a clínica pode pagar pelos seus.
+- `M3` Assinatura do Puericorbs por pediatra; a clínica pode pagar pelos seus.
 - `M3` Página pública do pediatra, com CRM e RQE, serviços e agendamento, dentro das regras de publicidade médica do
   CFM (Res. 2.336/2023).
 
@@ -277,7 +277,7 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 
 ## 13. Para explorar depois
 
-- **Teleconsulta** (Lei 14.510/2022 e Res. CFM 2.314/2022), com o vídeo no próprio Pueri.
+- **Teleconsulta** (Lei 14.510/2022 e Res. CFM 2.314/2022), com o vídeo no próprio Puericorbs.
 - **IA como rascunho, nunca como decisão**, com o dado protegido (modelo local ou provedor com contrato de
   tratamento): transcrever a consulta e rascunhar o registro, escrever o resumo para a família a partir do registro,
   ler exames, triar mensagens.

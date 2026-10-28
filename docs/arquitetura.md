@@ -26,8 +26,8 @@ Clínica (opcional) ─┬─ Unidades ── Salas
   descobre que ela existe em outra prática.
 - **A família é dona da identidade da criança; cada prática guarda o prontuário que produziu.** Levar o histórico de
   uma prática para outra é decisão da família (portabilidade), feita no app.
-- **Na LGPD,** a prática é a controladora dos dados de saúde que produz e o Pueri é o operador. Os dados da conta da
-  família (login, contato) têm o Pueri como controlador.
+- **Na LGPD,** a prática é a controladora dos dados de saúde que produz e o Puericorbs é o operador. Os dados da conta da
+  família (login, contato) têm o Puericorbs como controlador.
 
 Por que não isolar pela clínica: o pedido é "cada um vendo só os seus pacientes", e o pediatra muitas vezes atende
 em mais de um lugar, com a família seguindo o médico, não a clínica.
@@ -66,7 +66,7 @@ A visibilidade é decidida no servidor, na consulta ao banco, nunca na tela.
   prática, e tem de falhar.
 - Arquivos guardados com chave por prática e servidos por link assinado que expira.
 - **Log de auditoria** só de acréscimo: quem viu ou mudou qual registro, quando e de onde.
-- Acesso fora da prática (cobertura entre pediatras, suporte do Pueri) é uma concessão com prazo, motivo e registro.
+- Acesso fora da prática (cobertura entre pediatras, suporte do Puericorbs) é uma concessão com prazo, motivo e registro.
 
 ## As duas peças centrais
 
@@ -110,7 +110,7 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 |---|---|---|
 | Cobrança e recorrência | Asaas; Pagar.me, Iugu, Mercado Pago, Stripe | o Asaas junta PIX, boleto, cartão recorrente, split e NFS-e; confirmar o PIX Automático e as taxas |
 | Nota fiscal de serviço | o próprio gateway; Focus NFe, NFE.io, PlugNotas | cada município é um caso; o provedor resolve |
-| Receita Saúde | — | sem API pública conhecida; o Pueri prepara os dados e lembra |
+| Receita Saúde | — | sem API pública conhecida; o Puericorbs prepara os dados e lembra |
 | WhatsApp | API oficial da Meta (direto ou por um parceiro) | lembretes são mensagens de modelo, pagas por mensagem |
 | Assinatura digital | certificado ICP-Brasil em nuvem (BirdID, VIDaaS e outros) | receita e atestado válidos sem papel |
 | Prescrição | Memed | base de remédios e receita digital |
@@ -128,7 +128,7 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 - **Prontuário sem papel:** a regra do CFM exige que o sistema atenda ao nível NGS2 da certificação SBIS/CFM
   (assinatura digital ICP-Brasil nos registros). Decidir entre certificar o sistema ou assinar cada registro com o
   certificado em nuvem do pediatra (`decisoes.md`).
-- **Contratos:** a prática contrata o Pueri como operador; o Pueri tem contrato de tratamento com cada suboperador
+- **Contratos:** a prática contrata o Puericorbs como operador; o Puericorbs tem contrato de tratamento com cada suboperador
   (nuvem, gateway, WhatsApp, e-mail).
 - **Incidente:** plano de resposta, com comunicação à ANPD e aos titulares.
 - **Acesso:** 2FA para quem vê prontuário; sessão por aparelho, com encerramento remoto.

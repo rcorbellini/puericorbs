@@ -30,7 +30,7 @@ As regras também (o detalhe e o porquê de cada uma está no `design.md` do Car
 
 ## O que muda
 
-| | CardLine | Pueri | Por quê |
+| | CardLine | Puericorbs | Por quê |
 |---|---|---|---|
 | Tema padrão | segue o aparelho | **claro**; o escuro existe | o pedido é "cores mais claras"; o escuro serve a quem usa o celular no escuro e ao plantão |
 | Chão | `#e7eaf3` | `#f5f7fb`, quase branco com um toque de azul | mais claro, mais ar |

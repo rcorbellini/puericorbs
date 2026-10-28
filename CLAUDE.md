@@ -1,45 +1,82 @@
-# Pueri: como trabalhar neste projeto
+# Puericorbs: como trabalhar neste projeto
 
-O Pueri é um SaaS para o consultório pediátrico pequeno: agenda, financeiro, acompanhamento da criança, planos
-recorrentes e arquivos. O projeto está em **descoberta**: a fonte da verdade são os documentos em `docs/` (lista no
-`README.md`).
+O Puericorbs é um SaaS self-hosted para o consultório pediátrico pequeno: agenda, financeiro, acompanhamento da
+criança, planos recorrentes e arquivos. Cada pediatra tem o próprio domínio, todos apontam para este servidor, e o
+endereço decide a prática. O uso e a instalação estão no `README.md`; aqui fica o que importa para mexer no código.
 
 ## Idioma e tom
 
-- Responda em português do Brasil. Documentos, textos da tela, mensagens de erro e commits também em PT-BR.
+- Responda em português do Brasil. Documentos, textos da tela, mensagens de erro, comentários e commits também em PT-BR.
 - Identificadores no código (variáveis, funções, rotas, tabelas, colunas) em inglês. O nome de cada termo do domínio
-  está em `docs/glossario.md`: use o de lá, não invente outro ("plano" é `plan`, nunca `care_plan`).
+  está em `docs/glossario.md`: use o de lá ("plano" é `plan`, nunca `care_plan`).
 - Frases curtas e diretas, que dizem o porquê. Mensagem de erro diz o que fazer.
 
 ## Invariantes (não se negociam)
 
-1. **Cada pediatra só vê os seus pacientes.** O isolamento é pela prática (`practice`), não pela clínica: toda
-   consulta a dado de paciente é filtrada por ela no banco. Acesso fora da prática só por concessão com prazo, motivo
-   e registro.
-2. **A atendente nunca vê conteúdo clínico.** Ela vê agenda, cadastro, dinheiro e documentos administrativos.
-3. **A família vê o que foi liberado para ela.** Todo registro e todo arquivo tem visibilidade (`internal`, `family`,
-   `admin`, `confidential`), decidida no servidor. O registro clínico nasce `internal`; o resumo para a família,
-   `family`.
-4. **Prontuário não se apaga.** Corrige-se com histórico (quem, quando, o quê). Guarda mínima de 20 anos.
-5. **Todo acesso a dado de paciente vai para o log de auditoria** (quem, o quê, quando, de onde).
-6. **O serviço é a unidade de configuração.** Duração, preço, quem agenda, retorno, formulário, nota fiscal: o que o
-   pediatra quiser mudar mora no serviço, nunca fixo no código.
-7. **O que deve acontecer com a criança é um item do cuidado** (`care_item`). A linha do cuidado da família, os
-   lembretes e a busca ativa leem dele; lista paralela não existe.
+1. **Cada pediatra só vê os seus pacientes.** Cada prática tem o próprio banco (`data/practices/p<id>/practice.db`); o
+   banco da plataforma não guarda dado de paciente. Na API, outra prática só se abre por `_practice()` (em
+   `api_staff.py`), que confere a filiação. Toda rota nova de paciente ganha um teste em `tests/test_isolation.py`.
+2. **A atendente nunca vê conteúdo clínico.** O servidor monta a resposta sem ele (`views.patient_brief(clinical=False)`,
+   `care.timeline(audience="reception")`); a tela nunca esconde o que chegou.
+3. **A família vê o que foi liberado para ela.** Todo arquivo e item do cuidado tem visibilidade (`internal`, `family`,
+   `admin`), decidida no servidor. Criança de outra família responde 404, nunca 403.
+4. **Prontuário não se apaga.** Corrige-se com histórico. Guarda mínima de 20 anos.
+5. **Todo acesso a dado de paciente pela equipe vai para o `audit_log`** da prática (`ctx.audit`).
+6. **O serviço é a unidade de configuração** (`catalog.py`): o que o pediatra quiser mudar mora no `config` dele.
+7. **O que deve acontecer com a criança sai de `care.timeline`.** A tela da família, a busca ativa e os painéis leem
+   dali; lista paralela não existe.
+8. **Pedido que muda dado precisa do cabeçalho `X-PC: 1`** (a proteção contra CSRF do `server.py`).
 
-O porquê de cada um está em `docs/arquitetura.md` e `docs/decisoes.md`.
+## Comandos
+
+| Para | Comando |
+|---|---|
+| Instalar | `uv sync` |
+| Testes | `uv run -q pytest -q` (~3 s) |
+| Demonstração do zero | `uv run puericorbs seed --reset` |
+| Servidor | `uv run puericorbs serve` (porta 8930) |
+| Domínio para uma prática | `uv run puericorbs domain HOST SLUG` |
+| Capturas das telas | `uv run -q --with playwright python scripts/qa_shots.py PASTA [filtro]` (390 e 1280 px, claro e escuro; acusa erro de JavaScript e rolagem lateral) |
+| Sintaxe do JavaScript | `cd puericorbs/web/js && for f in *.js; do node --experimental-default-type=module --check $f; done` |
+
+- O servidor de validação roda como serviço de usuário transitório: `systemctl --user status puericorbs`. Para reiniciar
+  depois de mudar o código: `systemctl --user restart puericorbs`. A unidade permanente está em
+  `deploy/puericorbs.service`.
+- Nunca use `pkill -f` com um padrão que aparece na própria linha de comando: ele mata o seu shell. Ache o processo
+  pela porta (`ss -ltnp | grep 8930`).
+
+## Mapa do código
+
+- `config.py`: o `puericorbs.toml` (no git) e, por cima, o `data/config.toml` (fora do git). `demo = true` liga as
+  contas sem senha e a visita aos sites pelo endereço da plataforma: **desligar em produção**.
+- `db.py`: os dois esquemas (plataforma e prática), com `PRAGMA user_version` e migrações (suba a versão, ponha a coluna
+  no esquema e escreva a migração).
+- `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma).
+- `context.py`: o contexto de cada pedido (site, usuário, papel na prática) e os guardas (`staff`, `clinician`, `family`).
+- `auth.py`: senha (scrypt) e sessão (token no cookie, hash no banco).
+- `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
+- `protocols.py`: puericultura, vacinas (PNI) e marcos. `care.py`: a linha do cuidado. `growth.py`: as curvas da OMS
+  (`data/who_lms.json`, do pacote anthro da OMS).
+- `scheduling.py`: horários livres, marcar, mudar o estado. `plans.py`: cota e cobertura. `finance.py`: cobranças e
+  resumo do mês. `files.py`: guardar, limpar EXIF, quem vê.
+- `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
+- `seed.py`: a demonstração (tudo relativo ao dia de hoje). `practices.py`: criar uma prática.
+- `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
+  (entrada), `js/staff*.js` (equipe), `js/family.js` (família), `js/site.js` (plataforma e site público), `js/lib.js`
+  (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
 
 ## Visual
 
-Vidro líquido claro, derivado do CardLine (`~/cardline/cardline/web/glass.css` e `~/cardline/docs/design.md`). As
-regras, os tokens e o que muda em relação ao CardLine estão em `docs/identidade-visual.md`. O protótipo das telas é
-um canvas editável: https://claude.ai/artifact/Mrnek95xeh8xLoHdqJarYZ
+Vidro líquido claro, derivado do CardLine (`~/cardline/docs/design.md` tem as regras e as armadilhas). Os tokens e o que
+muda estão em `docs/identidade-visual.md`; o protótipo das telas é o canvas
+https://claude.ai/artifact/Mrnek95xeh8xLoHdqJarYZ. Regras de sempre: uma ação com a cor do destaque por tela, opção
+marcada sem cor, nada de vidro sobre vidro, estado com palavra. Mudou o layout? Rode as capturas e confira 390 e 1280 px.
 
 ## Como entregar
 
 1. Se faltar uma decisão que só o dono pode tomar, pergunte uma vez, com uma opção recomendada. O resto, decida e
    conte na resposta.
-2. Mudou uma decisão de produto? Atualize `docs/decisoes.md` e o documento do módulo no mesmo commit.
-3. Um commit por funcionalidade, com título e corpo em PT-BR (o que muda e o porquê).
-4. Dado real de paciente nunca entra em teste, exemplo, captura, documento ou commit. Exemplos usam famílias
-   fictícias.
+2. Testes passando; mudou a tela, capturas sem erro.
+3. Mudou uma decisão de produto? `docs/decisoes.md` e o documento do módulo no mesmo commit.
+4. Um commit por funcionalidade, título e corpo em PT-BR (o que muda e o porquê). Depois, reinicie o serviço.
+5. Dado real de paciente nunca entra em teste, exemplo, captura, documento ou commit.

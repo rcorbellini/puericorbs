@@ -1,0 +1,14 @@
+# Unidade de usuário do systemd para o Puericorbs (ainda não instalada).
+# Instalar: cp deploy/puericorbs.service ~/.config/systemd/user/ && systemctl --user enable --now puericorbs
+# Para seguir rodando sem sessão aberta: loginctl enable-linger $USER
+[Unit]
+Description=Puericorbs (o consultório pediátrico)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/puericorbs
+ExecStart=%h/puericorbs/.venv/bin/puericorbs serve --port 8930
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

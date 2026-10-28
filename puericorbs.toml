@@ -1,0 +1,23 @@
+# Configuração do puericorbs. O data/config.toml (fora do git) sobrescreve qualquer chave daqui.
+
+port = 8930
+data_dir = "data"
+timezone = "America/Sao_Paulo"
+
+# Demonstração: os botões "entrar como" na tela de entrada e a escolha do site de um pediatra a partir do endereço da
+# plataforma (o ngrok, o localhost). Em produção, desligue: endereço desconhecido passa a responder "domínio não
+# configurado" e só entra quem tem senha.
+demo = true
+
+# Os endereços que são a própria plataforma (a página de entrada do Puericorbs, não um consultório).
+platform_hosts = ["localhost", "127.0.0.1"]
+
+# Subdomínio por pediatra, para quem ainda não tem domínio próprio: <slug>.<base> abre o consultório do slug.
+# No computador, dramarina.localhost:8930 já funciona (o navegador manda *.localhost para a própria máquina).
+base_domains = ["localhost"]
+
+# Quantos dias a sessão dura sem entrar de novo.
+session_days = 30
+
+# O maior arquivo que a família ou o consultório podem enviar.
+max_upload_mb = 25
