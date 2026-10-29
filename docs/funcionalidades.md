@@ -224,9 +224,11 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 - `M3` Página de venda do plano, para mandar à gestante ou à família nova.
 
 > **Atenção regulatória (validar com advogado antes de vender):** o plano é um pacote de serviços do próprio
-> pediatra, não plano de saúde. Não pode cobrir risco (urgência, internação, exames de terceiros), para não cair na
-> regulação da ANS. O Código de Ética Médica veda o vínculo com empresas de cartão de desconto e de planos de
-> financiamento. Na tela, o nome é "plano de acompanhamento".
+> pediatra, não plano de saúde. Não pode cobrir risco (urgência, internação, exames de terceiros, consulta "ilimitada"),
+> para não cair na regulação da ANS. O Código de Ética Médica (art. 72, com a redação da Resolução CFM 2.226/2019) veda
+> o vínculo com empresas de planos de financiamento e de consórcios; os cartões de desconto saíram da vedação em 2019.
+> Na tela, o nome é "plano de acompanhamento". O que se recomenda para os planos, e as interações que valem a pena,
+> estão em `planos-e-interacoes.md`.
 
 ## 9. Comunicação
 

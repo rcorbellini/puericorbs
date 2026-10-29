@@ -86,6 +86,8 @@ mensagens, documentos em PDF, o construtor de formulários) está no [`docs/road
 
 - [`docs/visao.md`](docs/visao.md): o problema, para quem, os princípios e o que o Puericorbs não é.
 - [`docs/funcionalidades.md`](docs/funcionalidades.md): a exploração, módulo por módulo, com as fases.
+- [`docs/planos-e-interacoes.md`](docs/planos-e-interacoes.md): o que se recomenda para os planos de acompanhamento e as
+  interações entre a família e a pediatra, com as fontes.
 - [`docs/arquitetura.md`](docs/arquitetura.md): quem é dono de quê, o que cada perfil vê, os bancos e a pilha.
 - [`docs/dominios.md`](docs/dominios.md): o domínio de cada pediatra, do local à produção.
 - [`docs/identidade-visual.md`](docs/identidade-visual.md): o vidro líquido claro, derivado do CardLine.

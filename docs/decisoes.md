@@ -136,6 +136,9 @@
 | Domínio da plataforma | nenhum (hoje o painel e os convites de colega abrem no domínio de uma pediatra); um domínio com o nome | registrar junto com o nome: o painel e os convites de colega vão para ele (uma linha no `config.toml`) |
 | A pediatra ver as entradas da administração | numa tela dela (o `audit_log` com o `actor_id`, em Consultório); só quando ela pedir | na tela dela, antes do primeiro paciente de verdade: os dados são dela, e a transparência é a contrapartida do "vendo como" |
 | O contrato prever o acesso da plataforma | sim, para suporte e validação, com registro; não | sim: pela LGPD, a plataforma opera os dados que a pediatra controla; validar com advogado |
+| Calendário da puericultura | o mínimo do Ministério da Saúde (hoje: 7 consultas no primeiro ano); o da SBP (cerca de 10) | a pediatra escolhe; quem vende plano precisa do da SBP, senão a cota parece sobrar (`planos-e-interacoes.md`) |
+| A família confirmar pelo app | um toque na consulta; só pelo WhatsApp | no app também: fecha o ciclo do pedido de confirmação |
+| Mensagens com a família | o canal do plano, com regra (horário, prazo, triagem, prontuário); o WhatsApp pessoal da pediatra | o canal do plano, depois do termo e do advogado (`planos-e-interacoes.md`) |
 | Recuperar a senha da equipe | link por e-mail; a administração gera um link de troca | link por e-mail quando houver envio de e-mail; até lá, falar com a plataforma |
 | Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
 | Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |

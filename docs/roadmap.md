@@ -89,3 +89,7 @@ app nativo (`funcionalidades.md`, seção 13).
 4. Acompanhar a primeira pediatra e conversar com mais dois ou três (o roteiro acima).
 5. Decidir o nome e o gateway (`decisoes.md`, "Em aberto").
 6. Validar com um advogado o plano de acompanhamento, o termo e a política antes de vender.
+7. As interações que eu faria primeiro (`planos-e-interacoes.md`): busca ativa e vacina atrasada pelo WhatsApp,
+   confirmar presença no app, fazer funcionar as quatro chaves de Serviços que hoje não fazem nada (perguntas antes da
+   consulta, orientações pela idade, declaração, pesquisa), dúvidas para a próxima consulta e o resumo do ano na
+   renovação do plano.
