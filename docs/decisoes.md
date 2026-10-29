@@ -177,7 +177,7 @@
 | Recuperar a senha da equipe | link por e-mail; a administração gera um link de troca | link por e-mail quando houver envio de e-mail; até lá, falar com a plataforma |
 | Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
 | Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |
-| Gateway de pagamento | Asaas, Pagar.me, Iugu, Mercado Pago, Stripe | Asaas (recorrência, PIX, boleto, split e NFS-e num lugar só); confirmar o PIX Automático e as taxas |
+| Gateway de pagamento | AbacatePay (analisada em `pagamentos.md`: API simples, PIX barato, assinatura no cartão; só CNPJ, sem split, sem nota, sem PIX Automático); Asaas; Mercado Pago | cada pediatra recebe na conta dela; começar pelo PIX na recepção com a chave de teste da AbacatePay, e ligar a produção quando a pediatra tiver CNPJ (`pagamentos.md`, "Para decidir") |
 | Preço do Puericorbs | por pediatra/mês; taxa sobre o que passa no gateway; os dois | conversar com os pilotos antes |
 | Prontuário sem papel | certificar o sistema (SBIS/CFM, NGS2); assinar cada registro com o certificado em nuvem do pediatra | assinar por registro no começo; certificar quando houver tração |
 | Convênios | fora; dentro no M3 | fora até os pilotos pedirem |

@@ -98,6 +98,7 @@ mensagens, documentos em PDF, o construtor de formulários) está no [`docs/road
 - [`docs/arquitetura.md`](docs/arquitetura.md): quem é dono de quê, o que cada perfil vê, os bancos e a pilha.
 - [`docs/dominios.md`](docs/dominios.md): o domínio de cada pediatra, do local à produção.
 - [`docs/identidade-visual.md`](docs/identidade-visual.md): o vidro líquido claro, derivado do CardLine.
+- [`docs/pagamentos.md`](docs/pagamentos.md): a AbacatePay e como o Puericorbs receberia (a pesquisa; nada construído).
 - [`docs/glossario.md`](docs/glossario.md): os termos do domínio e o nome de cada um no código.
 - [`docs/roadmap.md`](docs/roadmap.md): os marcos e o estado de cada um.
 - [`docs/decisoes.md`](docs/decisoes.md): o que já foi decidido, com o porquê, e o que está em aberto.
