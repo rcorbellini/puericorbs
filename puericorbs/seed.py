@@ -342,6 +342,11 @@ def run(settings: Settings, reset: bool = False) -> None:
         clinics.add(pconn, clinic, carla, "receptionist")
         clinics.add(pconn, clinic, bia, "manager")
         clinics.add(pconn, clinic, marina, "manager")
+        # como cada um recebe (fiscal.py): a Dra. Marina como pessoa física (o recibo do Receita Saúde), o Dr. Paulo pela
+        # empresa do Simples (a nota). O CNPJ é de exemplo, só com os dígitos que fecham; CPF a demonstração não tem.
+        pconn.execute("UPDATE practices SET billing_mode = 'pf' WHERE id = ?", (marina_id,))
+        pconn.execute("""UPDATE practices SET billing_mode = 'pj', tax_id = '12345678000195', legal_name = 'Paulo Reis Pediatria Ltda',
+                         tax_regime = 'simples', iss_rate = 2 WHERE id = ?""", (paulo_id,))
     _marina(settings, pconn, marina_id, today, now)
     _paulo(settings, pconn, paulo_id, today, now)
     pconn.close()

@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Scope
 
-from . import api_admin, api_family, api_invites, api_public, api_staff, config, share, tenancy
+from . import api_admin, api_family, api_fiscal, api_invites, api_public, api_staff, config, share, tenancy
 from .config import Settings
 from .db import connect_platform
 
@@ -81,6 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(api_public.router)
     app.include_router(api_invites.router)
     app.include_router(api_staff.router)
+    app.include_router(api_fiscal.router)
     app.include_router(api_family.router)
     app.include_router(api_admin.router)
     app.mount("/static", Assets(directory=WEB), name="static")

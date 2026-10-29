@@ -1,12 +1,15 @@
 // O dia: o painel do pediatra (Hoje), a agenda em grade e as tarefas da recepção.
 import { api, html, raw, icon, toast, money, dateLong, dateBR, addDays, initials, statusPill, fileIcon, ago, actions, relDay, weekday, ask } from './lib.js';
-import { openAppointment, newAppointment, greeting, waButton, bindWhatsApp, askedText, inviteFamily } from './staff-common.js';
+import { openAppointment, newAppointment, greeting, waButton, bindWhatsApp, askedText, inviteFamily, documentDialog } from './staff-common.js';
 import { setCount, refresh } from './staff.js';
 
 export const shortName = (name) => {
   const parts = String(name || '').split(/\s+/);
   return /^Dra?\.$/.test(parts[0]) ? `${parts[0]} ${parts[1] || ''}` : parts[0];
 };
+
+// o que a família leva de cada pagamento: o recibo (pessoa física) ou a nota (empresa)
+const TO_ISSUE = { pf: 'Recibos a emitir', pj: 'Notas a emitir' };
 
 // ---- Hoje -------------------------------------------------------------------------------------------------------------
 export async function today(view, params, app) {
@@ -289,9 +292,9 @@ export async function reception(view, params, app) {
             : html`<p class="t-small muted" style="margin-top:8px">Nenhuma criança com a puericultura atrasada.</p>`}
         </section>
         <section class="glass card">
-          <div class="phead"><h3 class="t-h2">Notas a emitir</h3><span class="t-small muted">${p.invoices.length || 'nenhuma'}</span></div>
-          ${p.invoices.length ? html`<div style="margin-top:4px">${p.invoices.map((c) => html`<div class="li"><div class="grow"><b>${c.patient || c.family}</b><p class="t-small muted">${c.description} · ${dateBR(c.paid_on)}</p></div><span class="t-small" style="font-weight:700">${money(c.amount_cents)}</span><button class="btn ghost small" type="button" data-act="invoice" data-p="${pi}" data-id="${c.id}">Emitida</button></div>`)}</div>`
-            : html`<p class="t-small muted" style="margin-top:8px">Todas as notas emitidas.</p>`}
+          <div class="phead"><h3 class="t-h2">${TO_ISSUE[p.practice.billing_mode] || 'Recibos e notas a emitir'}</h3><span class="t-small muted">${p.invoices.length || 'em dia'}</span></div>
+          ${p.invoices.length ? html`<div style="margin-top:4px">${p.invoices.map((c) => html`<div class="li"><div class="grow"><b>${c.patient || c.family}</b><p class="t-small muted">${c.description} · ${dateBR(c.paid_on)}</p></div><span class="t-small" style="font-weight:700">${money(c.amount_cents)}</span><button class="btn ghost small" type="button" data-act="issue" data-p="${pi}" data-id="${c.id}">Emitir</button></div>`)}</div>`
+            : html`<p class="t-small muted" style="margin-top:8px">Tudo emitido.</p>`}
         </section>
         <section class="glass card">
           <div class="phead"><h3 class="t-h2">Mensalidades em atraso</h3><span class="t-small muted">${p.overdue.length ? money(p.overdue.reduce((s, c) => s + c.amount_cents, 0)) : 'nenhuma'}</span></div>
@@ -309,10 +312,7 @@ export async function reception(view, params, app) {
       toast('Consulta confirmada.'); refresh();
     },
     book: (el) => newAppointment(app, { practiceId: r.practices[Number(el.dataset.p)].practice.id, patient: { id: Number(el.dataset.patient), name: el.dataset.name, first_name: el.dataset.name.split(' ')[0] }, serviceKind: 'well_child', date: addDays(r.date, 1) }, refresh),
-    invoice: async (el) => {
-      await api(`/api/staff/charges/${el.dataset.id}/invoice?practice_id=${r.practices[Number(el.dataset.p)].practice.id}`, { method: 'POST', body: { status: 'emitida' } });
-      toast('Nota marcada como emitida.'); refresh();
-    },
+    issue: (el) => documentDialog(app, { practiceId: r.practices[Number(el.dataset.p)].practice.id, chargeId: Number(el.dataset.id) }, refresh),
     paid: async (el) => {
       await api(`/api/staff/charges/${el.dataset.id}/pay?practice_id=${r.practices[Number(el.dataset.p)].practice.id}`, { method: 'POST', body: { method: 'pix' } });
       toast('Mensalidade recebida.'); refresh();

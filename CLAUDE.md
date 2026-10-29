@@ -87,8 +87,10 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `protocols.py`: puericultura, vacinas (PNI) e marcos. `care.py`: a linha do cuidado. `growth.py`: as curvas da OMS
   (`data/who_lms.json`, do pacote anthro da OMS).
 - `scheduling.py`: horários livres, marcar, mudar o estado, a grade da pediatra (`set_hours`) e a agenda fechada
-  (`closure`). `plans.py`: cota e cobertura. `finance.py`: cobranças e resumo do mês. `files.py`: guardar, limpar EXIF,
-  quem vê.
+  (`closure`). `plans.py`: cota e cobertura. `finance.py`: cobranças e resumo do mês. `fiscal.py`: como a pediatra
+  recebe (pessoa física ou empresa; por ora, na cidade de São Paulo) e o documento de cada pagamento (o recibo do
+  Receita Saúde ou a nota), com o CPF e o CNPJ conferidos pelos dígitos; as rotas em `api_fiscal.py`. `files.py`:
+  guardar, limpar EXIF, quem vê.
 - `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
 - `share.py`: como o consultório aparece fora da página: o nome do app no celular (o manifesto), as metatags e a
   imagem da prévia do link (`/og.png`), montados pelo endereço em `server.py`.
@@ -96,7 +98,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
   uma prática (com ou sem pediatra; sem, ela entra pelo convite).
 - `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
   (entrada), `js/staff*.js` (equipe; o Consultório e a equipe estão em `staff-admin.js`, os Horários em
-  `staff-schedule.js`, e o WhatsApp com a mensagem pronta em `staff-common.js`), `js/family.js` (família),
+  `staff-schedule.js`, e o WhatsApp com a mensagem pronta e o diálogo de emitir o recibo ou a nota em
+  `staff-common.js`), `js/family.js` (família),
   `js/site.js` (plataforma, site público e convite), `js/admin.js` (o painel da administração), `js/lib.js`
   (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
 

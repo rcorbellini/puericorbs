@@ -181,7 +181,7 @@ lembretes, a busca ativa e os alertas do pediatra são consultas sobre ele, nunc
 |---|---|---|
 | Cobrança e recorrência | Asaas; Pagar.me, Iugu, Mercado Pago, Stripe | o Asaas junta PIX, boleto, cartão recorrente, split e NFS-e; confirmar o PIX Automático e as taxas |
 | Nota fiscal de serviço | o próprio gateway; Focus NFe, NFE.io, PlugNotas | cada município é um caso; o provedor resolve |
-| Receita Saúde | — | sem API pública conhecida; o Puericorbs prepara os dados e lembra |
+| Receita Saúde | — | sem API pública; a recepção emite com os dados prontos do Puericorbs e anexa o PDF (`fiscal.py`) |
 | WhatsApp | API oficial da Meta (direto ou por um parceiro) | lembretes são mensagens de modelo, pagas por mensagem |
 | Assinatura digital | certificado ICP-Brasil em nuvem (BirdID, VIDaaS e outros) | receita e atestado válidos sem papel |
 | Prescrição | Memed | base de remédios e receita digital |

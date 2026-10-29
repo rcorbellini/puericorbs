@@ -1,6 +1,6 @@
 // O que as telas da equipe dividem: o diálogo do agendamento (mudar o estado, começar a consulta, receber), marcar
 // consulta, cadastrar família e chamar a família no WhatsApp com a mensagem pronta.
-import { api, html, raw, icon, dialog, toast, fail, money, dateLong, dateBR, statusPill, initials, centsInput, toCents, debounce, isoDate,
+import { api, html, raw, icon, dialog, toast, fail, money, dateLong, dateBR, dateFull, statusPill, initials, centsInput, toCents, debounce, isoDate,
   relDay, weekday, firstName, waNumber, waLink, shareLink } from './lib.js';
 
 export const METHODS = { pix: 'PIX', cartao: 'Cartão', dinheiro: 'Dinheiro' };
@@ -308,6 +308,88 @@ export function newFamily(app, practiceId, onDone) {
 export function askedText(iso, todayIso) {
   const time = iso.slice(11, 16);
   return iso.slice(0, 10) === todayIso ? `às ${time}` : `em ${dateBR(iso)}, às ${time}`;
+}
+
+// ---- o recibo (pessoa física, Receita Saúde) ou a nota (empresa) de um pagamento ------------------------------------
+// Os dados prontos para copiar, onde emitir e o PDF, que vai para os arquivos da família (ela vê no app).
+const plainMoney = (cents) => centsInput(cents);
+const listPT = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}` : xs[0] || '');
+const DOC_TITLE = { pf: 'O recibo do Receita Saúde', pj: 'A nota fiscal' };
+
+export async function documentDialog(app, { practiceId, chargeId }, onDone) {
+  const qs = practiceId ? `?practice_id=${practiceId}` : '';
+  let doc = await api(`/api/staff/charges/${chargeId}/document${qs}`);
+  const d = dialog({ title: DOC_TITLE[doc.profile.mode] || 'O recibo ou a nota', body: html`<div data-doc style="display:flex;flex-direction:column;gap:14px"></div>`, wide: true });
+  const box = d.el.querySelector('[data-doc]');
+  const nota = () => doc.profile.mode === 'pj';
+  // o nome do campo em cima, o valor embaixo: no celular, o valor fica com a largura toda
+  const copyRow = (label, value) => html`<div class="row"><span class="lbl" style="overflow-wrap:anywhere"><span class="sub">${label}</span>${value}</span>
+    <button class="iconbtn small" type="button" data-copy="${value}" aria-label="Copiar ${label.toLowerCase()}" title="Copiar">${icon('copy')}</button></div>`;
+  const cpfRow = (label, who, kind) => (who.cpf ? copyRow(label, who.cpf)
+    : html`<div class="row" style="display:block;padding-top:10px;padding-bottom:12px">
+      <span class="sub">${label} · <span style="color:var(--todo);font-weight:600">falta no cadastro</span></span>
+      <span style="display:flex;gap:8px;margin-top:8px"><label class="field" style="flex:1;min-height:40px"><input data-cpf="${kind}" data-id="${who.id}" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" aria-label="${label}"></label>
+      <button class="btn ghost small" type="button" data-save="${kind}">Salvar</button></span></div>`);
+  const draw = (done = false) => {
+    const p = doc.profile;
+    const notice = `Olá${doc.payer ? `, ${firstName(doc.payer.name)}` : ''}! ${nota() ? 'A nota fiscal' : 'O recibo'} do pagamento de ${dateBR(doc.paid_on)} (${doc.service}, ${money(doc.amount_cents)}) já está no app, em Arquivos.`;
+    box.innerHTML = String(done ? html`
+      <p class="t-h3">${nota() ? 'A nota está' : 'O recibo está'} no app da família, em Arquivos.</p>
+      <p class="muted pretty">O pagamento saiu da lista do que falta emitir.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${doc.payer && waNumber(doc.payer.phone) ? html`<a class="btn" href="${waLink(doc.payer.phone, notice)}" target="_blank" rel="noopener">${icon('message')}Avisar ${firstName(doc.payer.name)} no WhatsApp</a>` : ''}
+        <button class="btn ghost" type="button" data-close>Fechar</button></div>` : html`
+      <div><p class="t-h3">${money(doc.amount_cents)} · pago em ${dateBR(doc.paid_on)}</p><p class="muted">${doc.description}</p></div>
+      ${!p.mode ? html`<p class="pill todo long">${icon('alert')}A pediatra ainda não disse como recebe (em Consultório): pessoa física, com o recibo do Receita Saúde, ou empresa, com a nota fiscal.</p>`
+        : doc.missing.length ? html`<p class="pill todo long">${icon('alert')}Falta ${listPT(doc.missing)}.</p>` : ''}
+      <div class="rows">
+        ${doc.payer ? html`${copyRow('Quem pagou', doc.payer.name)}${cpfRow('CPF de quem pagou', doc.payer, 'payer')}` : ''}
+        ${doc.child ? html`${copyRow('Quem foi atendido', doc.child.name)}${p.mode !== 'pj' ? cpfRow('CPF da criança', doc.child, 'child') : ''}` : ''}
+        ${copyRow('Valor', plainMoney(doc.amount_cents))}
+        ${copyRow('Data do pagamento', dateFull(doc.paid_on))}
+        ${copyRow('Descrição', doc.description)}
+        ${nota() ? copyRow('Código do serviço', doc.service_code) : ''}
+      </div>
+      ${p.portal ? html`<div style="display:flex;flex-direction:column;gap:8px"><a class="btn ghost" href="${p.portal.url}" target="_blank" rel="noopener" style="align-self:flex-start">${icon('link')}Abrir ${p.portal.name}</a>
+        <p class="t-small muted pretty">${p.portal.how}${p.mode === 'pf' ? ' A recepção pode emitir em nome da pediatra com uma procuração eletrônica no e-CAC.' : ''}</p></div>` : ''}
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px">
+        <label class="btn">${icon('upload')}Anexar o PDF ${nota() ? 'da nota' : 'do recibo'}<input type="file" accept="application/pdf,image/*" data-file hidden></label>
+        <button class="linkbtn t-small" type="button" data-plain>Já emiti, sem anexar</button>
+      </div>`);
+  };
+  draw();
+  box.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-copy], [data-save], [data-plain]');
+    if (!b) return;
+    try {
+      if (b.dataset.copy !== undefined) {
+        try { await navigator.clipboard.writeText(b.dataset.copy); toast('Copiado.'); } catch { toast('Não deu para copiar: selecione e copie.', 'err'); }
+      } else if (b.dataset.save) {
+        const input = box.querySelector(`[data-cpf="${b.dataset.save}"]`);
+        const path = b.dataset.save === 'payer' ? `guardians/${input.dataset.id}` : `patients/${input.dataset.id}`;
+        await api(`/api/staff/${path}/cpf${qs}`, { method: 'PUT', body: { cpf: input.value } });
+        doc = await api(`/api/staff/charges/${chargeId}/document${qs}`);
+        draw();
+      } else if (b.dataset.plain !== undefined) {
+        await api(`/api/staff/charges/${chargeId}/invoice${qs}`, { method: 'POST', body: { status: 'emitida' } });
+        toast(nota() ? 'Nota marcada como emitida.' : 'Recibo marcado como emitido.');
+        d.close();
+        if (onDone) onDone();
+      }
+    } catch (e) { fail(e); }
+  });
+  box.addEventListener('change', async (ev) => {
+    const input = ev.target.closest('[data-file]');
+    if (!input || !input.files[0]) return;
+    const form = new FormData();
+    form.append('upload', input.files[0]);
+    try {
+      await api(`/api/staff/charges/${chargeId}/document${qs}`, { method: 'POST', form });
+      draw(true);
+      if (onDone) onDone();
+    } catch (e) { fail(e); input.value = ''; }
+  });
+  return d;
 }
 
 // o convite de uma família que ainda não está no cadastro: quem convida escreve o que já sabe (tudo opcional), e a

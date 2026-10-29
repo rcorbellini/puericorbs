@@ -90,8 +90,14 @@
 | Cobrança | `charge` | o que a família deve pagar |
 | Pagamento | `payment` | o que entrou |
 | Recibo | `receipt` | |
-| Nota fiscal de serviço | `service_invoice` | a NFS-e |
-| Receita Saúde | `receita_saude` | o recibo da Receita Federal para o profissional pessoa física (nome próprio, fica em português) |
+| Nota fiscal de serviço | `charges.invoice`, arquivo `nota` | a NFS-e, para a pediatra que recebe com empresa |
+| Receita Saúde | `billing_mode = 'pf'`, arquivo `recibo` | o recibo da Receita Federal para o profissional pessoa física (nome próprio, fica em português) |
+| Como você recebe | `billing_mode` (`pf`, `pj`), `fiscal.py` | pessoa física (o recibo do Receita Saúde) ou empresa (a nota); "ainda não sei" também vale. Só a pediatra muda, em Consultório; por ora, na cidade de São Paulo |
+| A emitir | `charges.invoice = 'emitir'` | a cobrança paga que ainda espera o recibo ou a nota: a fila da Recepção |
+| O documento do pagamento | `fiscal.document`, `charges.document_file_id` | o que o recibo ou a nota pede (os dados para copiar e o que falta no cadastro) e o PDF anexado, que a família vê em Arquivos |
+| Regime da empresa | `tax_regime` (`simples`, `presumido`) | decide onde a nota sai: o Emissor Nacional (Simples Nacional) ou a Nota Fiscal Paulistana (Lucro Presumido) |
+| Inscrição municipal, CCM | `municipal_registration` | o cadastro da empresa na prefeitura de São Paulo |
+| Alíquota do ISS | `iss_rate` | em %, de 0 a 5; o contador confirma |
 | Kit reembolso | `reimbursement_kit` | a nota, o recibo e o relatório que o convênio pede |
 | Lançamento | `ledger_entry` | entrada ou saída no financeiro da prática |
 | Caixa do dia | `cash_session` | abrir, fechar e conferir o caixa da recepção |

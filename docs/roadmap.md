@@ -19,9 +19,10 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
   WhatsApp (o primeiro passo do M2) e o nome do consultório no app instalado e na prévia do link.
 - **Do M3, adiantado (29/10):** o consultório com várias pediatras, cada uma com os pacientes dela, a atendente de
   todas e a administração do consultório, com a equipe entrando por convite.
-- **Também em 29/10:** o convite da família nova pré-preenchido (a família confere e completa) e o QR code em todo
-  convite. **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
-  lembretes (push e e-mail).
+- **Também em 29/10:** o convite da família nova pré-preenchido (a família confere e completa), o QR code em todo
+  convite e o recibo ou a nota de cada pagamento, para a pediatra pessoa física ou com empresa (por ora em São Paulo):
+  a recepção emite com os dados prontos e o PDF chega à família. **Falta:** recuperar a senha da equipe, documentos em
+  PDF, caixa, lembretes (push e e-mail).
 
 ## Conversar com pediatras
 

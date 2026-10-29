@@ -206,6 +206,8 @@ def test_migracao_do_consultorio(tmp_path):
     pconn.execute("""INSERT INTO invites (token_hash, kind, practice_id, role, created_at, expires_at)
                      VALUES (?, 'staff', ?, 'receptionist', '2026-10-28T10:00:00', '2099-01-01T00:00:00')""",
                   (token_hash("pendente"), a))
+    for col in ("billing_mode", "tax_id", "legal_name", "municipal_registration", "tax_regime", "iss_rate"):
+        pconn.execute(f"ALTER TABLE practices DROP COLUMN {col}")  # o que a versão 6 trouxe (test_fiscal.py)
     pconn.execute("PRAGMA user_version = 4")
     pconn.close()
     pconn = connect_platform(s.data_dir)

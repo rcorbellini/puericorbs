@@ -6,7 +6,7 @@ from __future__ import annotations
 from conftest import H, client, outro_consultorio
 
 from puericorbs import config, tenancy
-from puericorbs.db import connect_platform
+from puericorbs.db import connect_platform, connect_practice, one
 
 
 def test_o_dominio_decide_o_consultorio(settings):
@@ -127,3 +127,29 @@ def test_horarios_e_agenda_fechada_so_do_proprio_consultorio(fresh):
     carla = client(fresh, "dramarina.localhost", "carla@demo.test")
     assert carla.post("/api/staff/closures", json={"start": amanha, "practice_id": 2}, headers=H).status_code == 200
     assert paulo.get("/api/staff/schedule").json()["closures"][0]["start"] == amanha
+
+
+def test_recibo_e_nota_so_de_quem_atende(fresh):
+    """O documento de um pagamento e os CPFs (`api_fiscal.py`): só a equipe da prática, no consultório dela."""
+    from test_fiscal import CPF, PDF, pago
+    ch = pago(fresh, 1, "Família Costa")
+    aberta = one(connect_practice(fresh.data_dir, 1), "SELECT id FROM charges WHERE status = 'aberta' LIMIT 1")["id"]
+    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
+    r = carla.get(f"/api/staff/charges/{aberta}/document?practice_id=1")
+    assert r.status_code == 409 and "ainda não foi paga" in r.json()["detail"]
+    # cada pediatra vê só os pagamentos dela, mesmo no mesmo consultório; a família não entra; de fora, nem se sabe
+    paulo = client(fresh, "drpauloreis.localhost", "paulo@demo.test")
+    assert paulo.get(f"/api/staff/charges/{ch['id']}/document?practice_id=1").status_code == 404
+    assert paulo.put("/api/staff/guardians/1/cpf?practice_id=1", json={"cpf": CPF}, headers=H).status_code == 404
+    r = paulo.put(f"/api/staff/patients/{ch['patient_id']}/cpf?practice_id=1", json={"cpf": CPF}, headers=H)
+    assert r.status_code == 404
+    assert paulo.post(f"/api/staff/charges/{ch['id']}/document?practice_id=1",
+                      files={"upload": ("r.pdf", PDF, "application/pdf")}, headers=H).status_code == 404
+    ana = client(fresh, "dramarina.localhost", "ana@demo.test")
+    assert ana.get(f"/api/staff/charges/{ch['id']}/document").status_code == 403
+    assert ana.put("/api/staff/guardians/1/cpf", json={"cpf": CPF}, headers=H).status_code == 403
+    outro_consultorio(fresh)
+    outra = client(fresh, "draoutra.localhost", "outra@demo.test")
+    assert outra.get(f"/api/staff/charges/{ch['id']}/document?practice_id=1").status_code == 404
+    assert outra.post(f"/api/staff/charges/{ch['id']}/document?practice_id=1",
+                      files={"upload": ("r.pdf", PDF, "application/pdf")}, headers=H).status_code == 404

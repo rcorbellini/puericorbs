@@ -2,7 +2,7 @@
 // o financeiro da prática.
 import { api, html, raw, icon, toast, fail, dialog, ask, askFields, shareLink, money, dateBR, dateFull, initials, actions, centsInput, toCents, debounce, monthName } from './lib.js';
 import { revenueBars, bindBars, revenueTable } from './charts.js';
-import { isClinician } from './staff-common.js';
+import { isClinician, documentDialog } from './staff-common.js';
 import { refresh } from './staff.js';
 
 const get = (obj, path) => path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
@@ -327,6 +327,9 @@ function newMembership(r) {
 export async function finance(view, params, app) {
   const ym = params.query.m || app.today.slice(0, 7);
   const r = await api(`/api/staff/finance?month=${ym}`);
+  // o que a família leva de cada pagamento: o recibo (pessoa física) ou a nota (empresa); sem definir, "documento"
+  const doc = { recibo: { word: 'recibo', head: 'Recibo', done: 'Emitido' }, nota: { word: 'nota', head: 'Nota', done: 'Emitida' } }[r.document]
+    || { word: 'documento', head: 'Recibo/nota', done: 'Emitido' };
   const shift = (n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(y, m - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
   let table = false;
   const pct = r.received ? Math.round(100 * r.result / r.received) : 0;
@@ -353,10 +356,10 @@ export async function finance(view, params, app) {
     </section>
     <div class="cols">
       <section class="glass card colmain">
-        <div class="phead"><h2 class="t-h2">Recebimentos</h2><span class="t-small muted">${r.invoices_pending ? `${r.invoices_pending} nota${r.invoices_pending > 1 ? 's' : ''} para emitir` : 'notas em dia'}</span></div>
-        <div class="tblbox" style="margin-top:10px"><table class="tbl" style="min-width:640px"><thead><tr><th>Data</th><th>Família</th><th>O quê</th><th>Forma</th><th class="r">Valor</th><th>Nota</th></tr></thead><tbody>
+        <div class="phead"><h2 class="t-h2">Recebimentos</h2><span class="t-small muted">${r.invoices_pending ? `${r.invoices_pending} ${doc.word}${r.invoices_pending > 1 ? 's' : ''} para emitir` : `${doc.word}s em dia`}</span></div>
+        <div class="tblbox" style="margin-top:10px"><table class="tbl" style="min-width:640px"><thead><tr><th>Data</th><th>Família</th><th>O quê</th><th>Forma</th><th class="r">Valor</th><th>${doc.head}</th></tr></thead><tbody>
           ${r.recent.length ? r.recent.map((c) => html`<tr><td class="num">${dateBR(c.paid_on)}</td><td>${(c.family || '').replace('Família ', '')}${c.patient ? html`<span class="t-small muted"> · ${c.patient.split(' ')[0]}</span>` : ''}</td><td>${c.description}</td><td>${r.methods[c.method] || c.method || '—'}</td><td class="r">${money(c.amount_cents)}</td>
-            <td>${c.invoice === 'emitida' ? html`<span class="pill ok">Emitida</span>` : c.invoice === 'emitir' ? html`<button class="btn ghost small" type="button" data-act="invoice" data-id="${c.id}">Já emiti</button>` : html`<span class="pill">Sem nota</span>`}</td></tr>`)
+            <td>${c.invoice === 'emitida' ? html`<span class="pill ok">${doc.done}</span>` : c.invoice === 'emitir' ? html`<button class="btn ghost small" type="button" data-act="issue" data-id="${c.id}">Emitir</button>` : html`<span class="pill">Sem ${doc.word}</span>`}</td></tr>`)
             : html`<tr><td colspan="6" class="muted">Nada recebido neste mês.</td></tr>`}
         </tbody></table></div>
       </section>
@@ -378,7 +381,7 @@ export async function finance(view, params, app) {
   actions(view, {
     month: (el) => { location.hash = `#/financeiro?m=${el.dataset.m}`; },
     table: (el) => { table = !table; view.querySelector('[data-table]').hidden = !table; el.textContent = table ? 'Esconder a tabela' : 'Ver tabela'; },
-    invoice: async (el) => { await api(`/api/staff/charges/${el.dataset.id}/invoice`, { method: 'POST', body: { status: 'emitida' } }); toast('Nota marcada como emitida.'); refresh(); },
+    issue: (el) => documentDialog(app, { chargeId: Number(el.dataset.id) }, refresh),
     pay: async (el) => {
       const d = dialog({
         title: 'Registrar o pagamento',
@@ -483,6 +486,69 @@ function bindTeam(root) {
   });
 }
 
+// ---- como a pediatra recebe: pessoa física (o recibo do Receita Saúde) ou empresa (a nota fiscal). Por ora, São Paulo.
+// Ainda sem decidir também vale: os pagamentos esperam na Recepção, com os dados prontos.
+function bindFiscal(form, f) {
+  let mode = f.profile.mode || '';
+  let regime = f.profile.regime || 'simples';
+  const p = f.profile;
+  const iss = p.iss_rate == null ? '' : String(p.iss_rate).replace('.', ',');
+  const input = (name, label, value, placeholder, extra = '') => html`<label class="row"><span class="lbl">${label}</span><input class="inline" name="${name}" value="${value || ''}" placeholder="${placeholder}" autocomplete="off" ${raw(extra)}></label>`;
+  form.innerHTML = String(html`
+    <div><h2 class="t-h2">Como você recebe</h2>
+      <p class="t-small muted pretty" style="margin-top:4px">O documento que a família leva de cada pagamento. Por enquanto, para quem atende na cidade de ${f.city}.</p></div>
+    <div class="seg" role="group" aria-label="Como você recebe" style="align-self:flex-start">
+      ${[['', 'Ainda não sei'], ['pf', 'Pessoa física'], ['pj', 'Empresa']].map(([k, l]) => html`<button type="button" data-mode="${k}" aria-pressed="${k === mode}">${l}</button>`)}</div>
+    <div data-show="" class="t-small muted pretty">Enquanto você decide, cada pagamento espera na Recepção, em "a emitir", com os dados prontos para copiar.</div>
+    <div data-show="pf" style="display:flex;flex-direction:column;gap:12px">
+      <p class="t-small muted pretty">${f.portals.pf.how} Sai no seu CPF; a recepção pode emitir por você com uma procuração eletrônica no e-CAC.</p>
+      <div class="rows">${input('cpf', html`Seu CPF<span class="sub">opcional · para a procuração</span>`, mode === 'pf' ? p.tax_id : '', '000.000.000-00', 'inputmode="numeric" maxlength="14"')}</div>
+    </div>
+    <div data-show="pj" style="display:flex;flex-direction:column;gap:12px">
+      <div class="rows">
+        ${input('cnpj', 'CNPJ', mode === 'pj' ? p.tax_id : '', '00.000.000/0000-00', 'inputmode="numeric" maxlength="18"')}
+        ${input('legal_name', html`Razão social<span class="sub">como no CNPJ</span>`, p.legal_name, 'Nome da empresa Ltda', 'maxlength="120" style="flex:2"')}
+        ${input('municipal_registration', html`Inscrição municipal<span class="sub">o CCM, se tiver</span>`, p.municipal_registration, '0.000.000-0', 'inputmode="numeric" maxlength="20"')}
+        ${input('iss_rate', html`Alíquota do ISS<span class="sub">em %, se souber</span>`, iss, '2', 'inputmode="decimal" maxlength="5"')}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span class="t-cap">Regime da empresa</span>
+        <div class="seg" role="group" aria-label="Regime da empresa" style="align-self:flex-start">
+          ${Object.entries(f.regimes).map(([k, l]) => html`<button type="button" data-regime="${k}" aria-pressed="${k === regime}">${l}</button>`)}</div>
+        <p class="t-small muted pretty" data-how></p></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><button class="btn" type="submit">Salvar</button></div>`);
+  const show = () => {
+    form.querySelectorAll('[data-show]').forEach((el) => { el.hidden = el.dataset.show !== mode; });
+    form.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    form.querySelectorAll('[data-regime]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.regime === regime)));
+    form.querySelector('[data-how]').textContent = `${f.portals[regime].how} O contador confirma o regime e a alíquota.`;
+  };
+  show();
+  form.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-mode], [data-regime]');
+    if (!b) return;
+    if (b.dataset.mode !== undefined) mode = b.dataset.mode;
+    else regime = b.dataset.regime;
+    show();
+  });
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const v = Object.fromEntries(new FormData(form));
+    const body = mode === 'pf' ? { mode, tax_id: v.cpf }
+      : mode === 'pj' ? { mode, tax_id: v.cnpj, legal_name: v.legal_name, municipal_registration: v.municipal_registration, regime,
+        iss_rate: v.iss_rate.trim() ? Number(v.iss_rate.replace(',', '.')) : null }
+        : { mode: null };
+    if (body.iss_rate !== undefined && body.iss_rate !== null && Number.isNaN(body.iss_rate)) { fail(new Error('A alíquota do ISS é um número, como 2 ou 2,5.')); return; }
+    try {
+      const saved = await api('/api/staff/fiscal', { method: 'PUT', body });
+      const fresh = form.cloneNode(false); // sem os ouvintes deste: o cartão volta do zero com o que ficou salvo
+      form.replaceWith(fresh);
+      bindFiscal(fresh, saved);
+      toast(mode ? 'Salvo. A Recepção já mostra o que emitir e onde.' : 'Salvo.');
+    } catch (e) { fail(e); }
+  });
+}
+
 export async function practice(view, params, app) {
   if (!isClinician(app)) {
     // a administração que não é pediatra: só a equipe (o site é de cada pediatra)
@@ -494,7 +560,7 @@ export async function practice(view, params, app) {
     bindTeam(view);
     return;
   }
-  const [r, team] = await Promise.all([api('/api/staff/practice'), api('/api/staff/team')]);
+  const [r, team, fisc] = await Promise.all([api('/api/staff/practice'), api('/api/staff/team'), api('/api/staff/fiscal')]);
   const p = r.practice;
   let accent = p.accent;
   const field = (name, label, value, placeholder, extra = '') => html`<label class="row"><span class="lbl">${label}</span><input class="inline" name="${name}" value="${value || ''}" placeholder="${placeholder}" ${raw(extra)}></label>`;
@@ -503,7 +569,8 @@ export async function practice(view, params, app) {
       <div class="titles"><h1 class="t-title">Consultório</h1><p class="t-small muted">Como você aparece no site e para as famílias, e a equipe do consultório.</p></div>
     </div>
     <div class="cols">
-      <form class="colmain" data-form style="gap:16px">
+      <div class="colmain">
+      <form data-form style="display:flex;flex-direction:column;gap:16px">
         <section class="glass card" style="display:flex;flex-direction:column;gap:14px">
           <h2 class="t-h2">No alto do site</h2>
           <div class="rows">
@@ -530,6 +597,8 @@ export async function practice(view, params, app) {
         </section>
         <div style="display:flex;justify-content:flex-end"><button class="btn big" type="submit">Salvar</button></div>
       </form>
+      <form class="glass card" data-fiscal style="display:flex;flex-direction:column;gap:14px"></form>
+      </div>
       <div class="colside" style="max-width:420px">
         <section class="glass card" style="display:flex;flex-direction:column;gap:12px">
           <h2 class="t-h2">O endereço do site</h2>
@@ -550,6 +619,7 @@ export async function practice(view, params, app) {
     accent = b.dataset.accent;
     view.querySelectorAll('[data-accent]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   });
+  bindFiscal(view.querySelector('[data-fiscal]'), fisc);
   view.querySelector('[data-form]').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const body = { ...Object.fromEntries(new FormData(ev.target)), accent };

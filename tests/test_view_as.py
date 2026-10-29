@@ -227,6 +227,8 @@ def test_migracao_mantem_a_sessao_e_o_registro(tmp_path):
         pconn.execute(f"ALTER TABLE sessions DROP COLUMN {col}")
     pconn.execute("DROP TABLE handoffs")
     pconn.execute("DROP TABLE clinic_members")  # o que a versão 5 trouxe (test_consultorio.py)
+    for col in ("billing_mode", "tax_id", "legal_name", "municipal_registration", "tax_regime", "iss_rate"):
+        pconn.execute(f"ALTER TABLE practices DROP COLUMN {col}")  # o que a versão 6 trouxe (test_fiscal.py)
     pconn.execute("PRAGMA user_version = 3")
     pconn.close()
     pconn = connect_platform(s.data_dir)
@@ -240,6 +242,8 @@ def test_migracao_mantem_a_sessao_e_o_registro(tmp_path):
         conn.execute(f"ALTER TABLE schedule_exceptions DROP COLUMN {col}")
     conn.execute("ALTER TABLE appointments DROP COLUMN confirm_asked_at")
     conn.execute("DROP TABLE invite_prefill")  # a versão 4 (test_invites.py)
+    conn.execute("ALTER TABLE patients DROP COLUMN cpf")  # a versão 5 (test_fiscal.py)
+    conn.execute("ALTER TABLE charges DROP COLUMN document_file_id")
     conn.execute("PRAGMA user_version = 1")
     conn.close()
     conn = connect_practice(s.data_dir, 1)

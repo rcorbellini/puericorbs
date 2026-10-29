@@ -214,6 +214,8 @@ def test_migracao_da_agenda_fechada(tmp_path):
         conn.execute(f"ALTER TABLE schedule_exceptions DROP COLUMN {col}")
     conn.execute("ALTER TABLE appointments DROP COLUMN confirm_asked_at")
     conn.execute("DROP TABLE invite_prefill")  # o que a versão 4 trouxe (test_invites.py)
+    conn.execute("ALTER TABLE patients DROP COLUMN cpf")  # a versão 5 (test_fiscal.py)
+    conn.execute("ALTER TABLE charges DROP COLUMN document_file_id")
     conn.execute("INSERT INTO schedule_exceptions (day, reason) VALUES ('2031-03-03', 'Feriado')")
     conn.execute("PRAGMA user_version = 2")
     conn.close()

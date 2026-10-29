@@ -320,6 +320,8 @@ def test_migracao_do_convite_pre_preenchido(tmp_path):
     s = config.load(tmp_path)
     conn = connect_practice(s.data_dir, 1)
     conn.execute("DROP TABLE invite_prefill")
+    conn.execute("ALTER TABLE patients DROP COLUMN cpf")  # a versão 5 (test_fiscal.py)
+    conn.execute("ALTER TABLE charges DROP COLUMN document_file_id")
     conn.execute("PRAGMA user_version = 3")
     conn.close()
     conn = connect_practice(s.data_dir, 1)

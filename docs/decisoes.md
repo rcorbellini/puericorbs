@@ -4,6 +4,25 @@
 
 ## Tomadas
 
+### 29/10/2026 — pessoa física ou empresa, e o documento de cada pagamento
+
+42. **O Puericorbs atende a pediatra que recebe como pessoa física e a que recebe com CNPJ; por ora, só na cidade de
+    São Paulo.** Pedido do dono: "não sei ainda se vai atender como CPF ou CNPJ, mas por ser um SaaS deveria conseguir
+    lidar com as duas situações". Só a pediatra diz como recebe, em Consultório (`fiscal.py`), e "ainda não sei" também
+    vale. Pessoa física: o recibo do Receita Saúde. Empresa: a nota fiscal, pelo Emissor Nacional (Simples Nacional,
+    desde 1º/11/2026) ou pela Nota Fiscal Paulistana (Lucro Presumido). No mesmo consultório, cada pediatra escolhe a
+    sua: na demonstração, a Dra. Marina é pessoa física e o Dr. Paulo tem empresa.
+43. **Emitir é assistido: a recepção emite onde se emite, e o Puericorbs faz o resto.** Na fila "Recibos a emitir" (ou
+    "Notas a emitir"), cada pagamento abre com os dados prontos para copiar (quem pagou, a criança, os CPFs, o valor, a
+    data, a descrição e, na nota, o código do serviço), o link do portal certo e o anexo do PDF. O PDF vai para os
+    Arquivos da família, com o aviso pronto no WhatsApp. O porquê: o Receita Saúde não tem API, e a nota automática pede
+    o certificado digital da empresa (no Lucro Presumido, também um provedor). A nota automática entra com a primeira
+    pediatra que tiver CNPJ e certificado.
+44. **O CPF de quem paga e o da criança ficam no banco da prática, conferidos pelos dígitos** (`fiscal.clean_cpf`),
+    também no cadastro da família. O recibo pede os dois; a nota, só o de quem pagou, que é o tomador. O CPF ou o CNPJ
+    da pediatra, a razão social, a inscrição municipal, o regime e o ISS ficam na prática, no banco da plataforma: são
+    dela, não de paciente, e nenhuma página pública os mostra.
+
 ### 29/10/2026 — o QR code em todo convite
 
 41. **Todo convite sai como link e como QR code.** Pedido do dono. Na recepção, a pessoa aponta a câmera do celular

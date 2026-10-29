@@ -1,7 +1,7 @@
 # Pagamentos: a AbacatePay e como o Puericorbs receberia
 
-> 29/10/2026. Pesquisa pedida pelo dono. A fonte é a documentação da AbacatePay (API v2), lida nesta data; as taxas
-> não estão nela. Nada disto está construído ainda.
+> 29/10/2026. Pesquisa pedida pelo dono: a AbacatePay (pela documentação da API v2, lida nesta data) e o recibo e a
+> nota da família. Do recibo e da nota, o fluxo assistido está construído (`fiscal.py`); o pagamento, ainda não.
 
 ## O que a AbacatePay é
 
@@ -134,15 +134,22 @@ Pergunta do dono (29/10/2026): o médico ou o consultório precisa de CNPJ, e o 
     2. **Por um provedor** (Focus NFe, NFE.io e outros): uma API só para todas as prefeituras, inclusive as que ainda
        exigem o sistema próprio. Isso é comum para quem está no Lucro Presumido em cidades grandes. O provedor cobra por
        nota ou por mês.
-- **O que o Puericorbs já tem e o que falta.**
-  - **Já tem:**
-    - a fila "Notas a emitir" na recepção;
-    - o anexo de nota e de recibo, que a família vê no app;
-    - em cada serviço, o código da nota (04.01, medicina) e a chave "emitir sozinha".
-  - **Falta:**
-    - o CPF da criança (hoje só o responsável tem CPF);
-    - os dados fiscais da pediatra: CNPJ, inscrição municipal, regime e alíquota do ISS;
-    - o certificado digital, no caso do CNPJ.
+- **O que o Puericorbs já tem (29/10/2026, por ora na cidade de São Paulo).** O dono pediu as duas situações: "por
+  ser um SaaS deveria conseguir lidar com as duas".
+  - **Em Consultório, "Como você recebe":** pessoa física; empresa, com o CNPJ, a razão social, a inscrição municipal
+    (o CCM), o regime e o ISS; ou "ainda não sei". Só a pediatra muda.
+  - **A fila:** "Recibos a emitir" (ou "Notas a emitir") na Recepção, e o mesmo **Emitir** no Financeiro da pediatra.
+  - **O diálogo de cada pagamento:**
+    - os dados prontos para copiar;
+    - os CPFs que faltam, ali mesmo, com a conferência dos dígitos;
+    - o portal certo: o e-CAC, o Emissor Nacional ou a Nota Fiscal Paulistana;
+    - o anexo do PDF.
+  - **O PDF vai para os Arquivos da família,** e a recepção avisa pelo WhatsApp, com a mensagem pronta.
+  - **Em cada serviço,** o código da nota (04.01, medicina).
+- **Falta:**
+  - a nota emitida sozinha: o certificado digital A1 da empresa e a integração (a API da NFS-e Nacional, no Simples; um
+    provedor, no Lucro Presumido);
+  - outras cidades: cada prefeitura é um caso, até todas estarem na NFS-e Nacional.
 - **E a AbacatePay:** só recebe com CNPJ. A pediatra pessoa física precisa de um gateway que aceite CPF.
 
 ## Recomendação

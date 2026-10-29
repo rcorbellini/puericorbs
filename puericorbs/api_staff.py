@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from . import care, catalog, files, finance, growth, invites, plans, practices, protocols, scheduling, views
+from . import care, catalog, files, finance, fiscal, growth, invites, plans, practices, protocols, scheduling, views
 from .context import Ctx, clinician, dep, staff, staff_practices
 from .db import insert, many, now_iso, one, transaction, update
 
@@ -345,6 +345,7 @@ def new_family(body: NewFamily, ctx: Ctx = Depends(dep)):
     birth = _date(body.child.birth_date, ctx.today)
     if birth > ctx.today:
         raise HTTPException(400, "A data de nascimento está no futuro.")
+    cpf = fiscal.clean_cpf(body.guardian.cpf, "do responsável")
     surname = body.child.name.strip().split()[-1] if len(body.child.name.split()) > 1 else body.guardian.name.split()[-1]
     with transaction(conn):
         fid = insert(conn, "families", {"name": body.family_name or f"Família {surname}", "created_at": now_iso()})
@@ -352,7 +353,7 @@ def new_family(body: NewFamily, ctx: Ctx = Depends(dep)):
         # (o e-mail digitado aqui não prova nada; ligar direto entregaria a conta de outra pessoa)
         insert(conn, "guardians", {"family_id": fid, "user_id": None, "name": body.guardian.name.strip(),
                                    "relation": body.guardian.relation, "phone": body.guardian.phone,
-                                   "email": (body.guardian.email or "").strip().lower() or None, "cpf": body.guardian.cpf,
+                                   "email": (body.guardian.email or "").strip().lower() or None, "cpf": cpf,
                                    "is_legal": 1, "is_financial": 1, "created_at": now_iso()})
         pid = insert(conn, "patients", {"family_id": fid, "name": body.child.name.strip(), "sex": body.child.sex,
                                         "birth_date": birth.isoformat(), "gestational_weeks": body.child.gestational_weeks,
@@ -904,6 +905,7 @@ def finance_view(month: str | None = None, ctx: Ctx = Depends(dep)):
     out = finance.summary(ctx.conn, ym, ctx.today)
     out["methods"] = finance.METHODS
     out["invoice_labels"] = finance.INVOICE
+    out["document"] = fiscal.profile(ctx.practice)["document"]
     return out
 
 
@@ -1030,7 +1032,7 @@ def reception(ctx: Ctx = Depends(dep)):
         to_receive = [a for a in views.day_appointments(conn, ctx.today, ctx.now, practice=p, staff=True)
                       if a["status"] in ("atendido", "em_atendimento", "chegou") and not a["covered"] and not a["paid"] and a["price_cents"] > 0]
         out["practices"].append({
-            "practice": {"id": p["id"], "name": p["name"], "slug": p["slug"]},
+            "practice": {"id": p["id"], "name": p["name"], "slug": p["slug"], "billing_mode": p.get("billing_mode")},
             "confirm_date": day.isoformat(), "confirm": confirm,
             "confirmed": sum(1 for a in confirm if a["status"] == "confirmado"),
             "arrivals": arrivals, "outreach": outreach, "invoices": invoices, "overdue": overdue,

@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-PLATFORM_VERSION = 5
+PLATFORM_VERSION = 6
 PLATFORM_SCHEMA = """
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
@@ -56,7 +56,13 @@ CREATE TABLE practices (
   accent TEXT NOT NULL DEFAULT 'agua',
   clinic_id INTEGER REFERENCES clinics(id),
   requested_domain TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  billing_mode TEXT,
+  tax_id TEXT,
+  legal_name TEXT,
+  municipal_registration TEXT,
+  tax_regime TEXT,
+  iss_rate REAL
 );
 CREATE TABLE domains (
   host TEXT PRIMARY KEY,
@@ -193,10 +199,18 @@ def _platform_v5(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE invites SET label = NULL WHERE kind = 'family'")
 
 
-PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4,
-                                                                         5: _platform_v5}
+def _platform_v6(conn: sqlite3.Connection) -> None:
+    """Como a pediatra recebe (`fiscal.py`): pessoa física (o recibo do Receita Saúde) ou empresa (a nota fiscal), com
+    o CPF ou o CNPJ, a razão social, a inscrição municipal, o regime e o ISS."""
+    for col in ("billing_mode TEXT", "tax_id TEXT", "legal_name TEXT", "municipal_registration TEXT", "tax_regime TEXT",
+                "iss_rate REAL"):
+        conn.execute(f"ALTER TABLE practices ADD COLUMN {col}")
 
-PRACTICE_VERSION = 4
+
+PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4,
+                                                                         5: _platform_v5, 6: _platform_v6}
+
+PRACTICE_VERSION = 5
 PRACTICE_SCHEMA = """
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
@@ -235,7 +249,8 @@ CREATE TABLE patients (
   birth_type TEXT,
   allergies TEXT,
   conditions TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  cpf TEXT
 );
 CREATE TABLE services (
   id INTEGER PRIMARY KEY,
@@ -415,7 +430,8 @@ CREATE TABLE charges (
   method TEXT,
   paid_on TEXT,
   invoice TEXT NOT NULL DEFAULT 'emitir',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  document_file_id INTEGER
 );
 CREATE INDEX charges_due ON charges(due_on);
 CREATE TABLE expenses (
@@ -468,7 +484,15 @@ def _practice_v4(conn: sqlite3.Connection) -> None:
     conn.execute(_table(PRACTICE_SCHEMA, "invite_prefill"))
 
 
-PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2, 3: _practice_v3, 4: _practice_v4}
+def _practice_v5(conn: sqlite3.Connection) -> None:
+    """O CPF da criança (o recibo do Receita Saúde pede o de quem foi atendido) e o documento de cada cobrança (o
+    recibo ou a nota que a família recebe no app)."""
+    conn.execute("ALTER TABLE patients ADD COLUMN cpf TEXT")
+    conn.execute("ALTER TABLE charges ADD COLUMN document_file_id INTEGER")
+
+
+PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2, 3: _practice_v3, 4: _practice_v4,
+                                                                         5: _practice_v5}
 
 
 def now_iso(tz=None) -> str:

@@ -67,9 +67,11 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
   do serviço, as medidas com percentil da OMS na hora, os marcos, o resumo para a família separado do registro e os
   próximos passos; a ficha da criança (linha do cuidado, curvas, caderneta, marcos, consultas, arquivos); a caixa de
   revisão; os serviços (cada um configurável); os horários (os dias e os períodos em que atende, a vaga da criança
-  doente e a agenda fechada por um dia ou mais); os planos com cota; o financeiro com a exportação para o contador.
+  doente e a agenda fechada por um dia ou mais); os planos com cota; o financeiro com a exportação para o contador; e
+  como recebe (pessoa física, com o recibo do Receita Saúde, ou empresa, com a nota; por ora na cidade de São Paulo).
 - **Recepção:** as tarefas do dia de todos os pediatras que atende (chegadas, receber, confirmar o próximo dia com
-  consulta, com o pedido pelo WhatsApp já escrito, busca ativa, notas a emitir, mensalidades em atraso); a agenda da
+  consulta, com o pedido pelo WhatsApp já escrito, busca ativa, os recibos e as notas a emitir, com os dados prontos e o
+  PDF que chega à família, mensalidades em atraso); a agenda da
   clínica em grade, com encaixe, as vagas da criança doente e os dias fechados; o cadastro das famílias.
 - **Família:** o próximo passo e o "a fazer" calculados pela idade; o feito, com o resumo de cada consulta; agendar
   dentro da janela do protocolo e das regras do serviço, com o plano; a curva de crescimento, as vacinas e os marcos;
@@ -86,8 +88,9 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
   um, os convites e o que aconteceu; liga domínios, gera os convites da plataforma e entra em qualquer consultório
   **vendo como** a pediatra, a atendente ou uma família, com uma faixa no topo (tudo fica no registro do consultório).
 
-O que ainda não existe (recuperar a senha da equipe, segundo fator, cobrança automática, NFS-e, WhatsApp automático,
-mensagens, documentos em PDF, o construtor de formulários) está no [`docs/roadmap.md`](docs/roadmap.md).
+O que ainda não existe (recuperar a senha da equipe, segundo fator, cobrança automática, a nota emitida sozinha,
+WhatsApp automático, mensagens, documentos em PDF, o construtor de formulários) está no
+[`docs/roadmap.md`](docs/roadmap.md).
 
 ## Documentos
 

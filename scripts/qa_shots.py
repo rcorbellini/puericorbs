@@ -201,6 +201,15 @@ def shots(out: Path, only: str = "") -> int:
         run("consultorio-convidar-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-team="invite"]'))
         run("consultorio-paulo-1280", "drpauloreis.localhost", "#/consultorio", DESK, "paulo@demo.test")
         run("recepcao-bia-390", "dramarina.localhost", "#/recepcao", PHONE, "bia@demo.test")
+        # como a pediatra recebe e o recibo (ou a nota) de cada pagamento (fiscal.py)
+        run("recebe-paulo-390", "drpauloreis.localhost", "#/consultorio", PHONE, "paulo@demo.test")
+        run("recebe-ainda-nao-sei-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-mode=""]'))
+        run("recebe-empresa-escuro-390", "dramarina.localhost", "#/consultorio", PHONE, m, theme="escuro",
+            after=click('[data-mode="pj"]'))
+        run("emitir-recibo-390", "dramarina.localhost", "#/recepcao", PHONE, c, after=click('[data-act="issue"]'))
+        run("emitir-recibo-escuro-390", "dramarina.localhost", "#/recepcao", PHONE, c, theme="escuro",
+            after=click('[data-act="issue"]'))
+        run("emitir-nota-1280", "drpauloreis.localhost", "#/financeiro", DESK, "paulo@demo.test", after=click('[data-act="issue"]'))
         run("convite-familia-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "family"))
         run("convite-colega-1280", "dramarina.localhost", "#/convite/", DESK, before=invite("", "practice"))
         run("convite-colega-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "practice"))
