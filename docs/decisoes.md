@@ -4,6 +4,13 @@
 
 ## Tomadas
 
+### 28/10/2026 — o nome do consultório no celular e na prévia do link
+
+31. **O consultório aparece com o nome que a pediatra deu a ele, no app instalado e na prévia do link.** Pedido do
+    dono. O manifesto, o título, as metatags e a imagem da prévia saem do servidor para cada endereço (`share.py`),
+    porque o WhatsApp não roda o JavaScript. "Puericorbs" fica só no endereço da plataforma e no "Feito com Puericorbs"
+    do site.
+
 ### 28/10/2026 — a administração vendo como quem usa
 
 30. **A administração entra em qualquer consultório vendo como alguém dele** (substitui o "nunca paciente" da 27).

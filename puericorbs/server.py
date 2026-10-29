@@ -8,12 +8,13 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.types import Scope
 
-from . import api_admin, api_family, api_invites, api_public, api_staff, config, tenancy
+from . import api_admin, api_family, api_invites, api_public, api_staff, config, share, tenancy
 from .config import Settings
+from .db import connect_platform
 
 WEB = Path(__file__).parent / "web"
 FOREVER = "public, max-age=31536000, immutable"
@@ -84,20 +85,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(api_admin.router)
     app.mount("/static", Assets(directory=WEB), name="static")
 
+    def identity(request: Request) -> tuple[dict, str, str]:
+        """Quem este endereço abre (o nome, a cor), a origem do pedido e o endereço sem a porta."""
+        pconn = connect_platform(settings.data_dir)
+        try:
+            site = tenancy.resolve(settings, pconn, request.headers.get("host"), request.cookies.get(tenancy.SITE_COOKIE))
+        finally:
+            pconn.close()
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+        return share.identity(site.practice), f"{scheme}://{request.headers.get('host', site.host)}", site.host
+
     @app.get("/manifest.webmanifest", include_in_schema=False)
-    def manifest():
-        return FileResponse(WEB / "manifest.webmanifest", media_type="application/manifest+json",
+    def manifest(request: Request):
+        """O app instalado no celular leva o nome do consultório, não o da plataforma."""
+        ident, _, _ = identity(request)
+        return JSONResponse(share.manifest(ident), media_type="application/manifest+json",
                             headers={"Cache-Control": "no-cache"})
+
+    @app.get("/og.png", include_in_schema=False)
+    def card(request: Request, v: str = ""):
+        """A imagem da prévia do link. O endereço leva a versão do cartão: com a de agora, fica guardada para sempre."""
+        ident, _, host = identity(request)
+        current = share.card_version(ident, host)
+        png = share.card_png(ident["name"], ident["line"], ident["accent"], host)
+        return Response(png, media_type="image/png", headers={"Cache-Control": FOREVER if v == current else "no-cache"})
 
     @app.get("/healthz", include_in_schema=False)
     def health():
         return {"ok": True}
 
     @app.get("/{path:path}", include_in_schema=False)
-    def page(path: str):
+    def page(path: str, request: Request):
+        """A página, com os arquivos da versão de agora e, no lugar do <title>, o nome e a prévia do link de quem este
+        endereço abre (`share.py`)."""
         if path.startswith("api/"):
             return JSONResponse({"detail": "Não encontrado."}, status_code=404)
+        ident, origin, host = identity(request)
         body = (WEB / "index.html").read_text(encoding="utf-8").replace('"/static/', f'"/static/v/{asset_version()}/')
+        body = body.replace("<title>Puericorbs</title>", share.head(ident, origin, host), 1)
         return HTMLResponse(body, headers={"Cache-Control": "no-cache"})
 
     return app

@@ -127,7 +127,7 @@ async function boot() {
   app.me = app.site.me;
   if (app.site.practice) {
     document.documentElement.dataset.accent = app.site.practice.accent;
-    document.title = app.me ? `${app.site.practice.name} · Puericorbs` : app.site.practice.name;
+    document.title = app.site.practice.name;  // o nome do app no celular é o do consultório (share.py)
   }
   demoBar();
   actingBar();

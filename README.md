@@ -68,7 +68,8 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
   cadastro das famílias.
 - **Família:** o próximo passo e o "a fazer" calculados pela idade; o feito, com o resumo de cada consulta; agendar
   dentro da janela do protocolo e das regras do serviço, com o plano; a curva de crescimento, as vacinas e os marcos;
-  os arquivos, com o envio de exames e fotos para a pediatra revisar.
+  os arquivos, com o envio de exames e fotos para a pediatra revisar. Instalado no celular, o app leva o nome do
+  consultório, e o link mandado pelo WhatsApp mostra o nome, a especialidade e o CRM da pediatra.
 
 - **Convites:** toda conta nasce de um link de uso único. A pediatra convida a atendente e um colega (que ganha o
   próprio consultório) em **Consultório**, onde também ajusta o site; ela e a recepção mandam o acesso da família pela

@@ -19,6 +19,11 @@ O `www.` de um domínio cadastrado volta para o domínio sem ele (301, no `serve
 A sessão vale por domínio (o cookie é do endereço): entrar em `dramarina.com.br` não entra em `drpauloreis.com.br`. A
 mesma conta pode existir nos dois, com papéis diferentes em cada prática.
 
+O endereço também decide o nome: a página, o app instalado e a prévia do link mostram o nome do consultório
+(`share.py`). O WhatsApp guarda a prévia de cada link por um tempo; depois de mudar o nome em **Consultório**, um link
+já mandado pode mostrar o antigo, e um envio novo mostra o atual. Quem instalou o app antes da troca: no Android o nome
+se atualiza sozinho com o tempo; no iPhone, é preciso tirar o ícone e adicionar de novo.
+
 ## Duas instâncias: a produção e a demonstração
 
 | | Produção | Demonstração |

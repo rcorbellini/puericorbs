@@ -111,6 +111,15 @@ administração naquele endereço (`sessions.as_*`). Lá, `ctx.user` e `ctx.role
 administração; cada pedido vai para o `audit_log` do consultório com o `actor_id`. Fora do "vendo como", a
 administração não abre ficha, lista de pacientes ou arquivo. Consultório sem domínio ainda não tem onde entrar.
 
+## Como o consultório aparece fora da página
+
+O app instalado e a prévia do link levam o nome que a pediatra deu ao consultório. Quem lê o link (o WhatsApp, o
+iMessage) não roda o JavaScript, então tudo sai do servidor para cada endereço (`share.py`): o `<title>` e as metatags
+(`og:*`, `apple-mobile-web-app-title`) entram no lugar do `<title>` do `index.html`, o `/manifest.webmanifest` é montado
+na hora e `/og.png` desenha o cartão (a bolha com a cor do consultório, o nome, a especialidade, o CRM e o domínio). O
+endereço da imagem leva a versão do cartão, porque o WhatsApp guarda a imagem pelo endereço. Só o endereço da plataforma
+se chama Puericorbs.
+
 ## As duas peças centrais
 
 **O serviço** (`service`) é a unidade de configuração. A agenda pega dele a duração e quem pode marcar; o financeiro,

@@ -106,4 +106,6 @@
 | Mensagem | `message` | |
 | Comunicado | `broadcast` | mensagem para muitas famílias de uma vez |
 | Log de auditoria | `audit_log` | quem viu ou mudou o quê |
+| Prévia do link | `share.head`, `/og.png` | o nome, o texto e a imagem que o WhatsApp mostra quando alguém manda o endereço |
+| Nome no celular | `short_name` | o nome embaixo do ícone do app instalado (até 12 letras) |
 | Consentimento | `consent` | o aceite registrado (termo, comunicados, plano) |

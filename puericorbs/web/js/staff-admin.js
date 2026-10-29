@@ -525,7 +525,7 @@ export async function practice(view, params, app) {
       const saved = await api('/api/staff/practice', { method: 'PUT', body });
       Object.assign(app.site.practice, saved.practice);
       document.documentElement.dataset.accent = saved.practice.accent;
-      document.title = `${saved.practice.name} · Puericorbs`;
+      document.title = saved.practice.name;
       const brand = document.querySelector('.brand .practice');
       if (brand) brand.textContent = saved.practice.name;
       toast('Salvo. O site já mostra assim.');

@@ -79,6 +79,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `scheduling.py`: horários livres, marcar, mudar o estado. `plans.py`: cota e cobertura. `finance.py`: cobranças e
   resumo do mês. `files.py`: guardar, limpar EXIF, quem vê.
 - `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
+- `share.py`: como o consultório aparece fora da página: o nome do app no celular (o manifesto), as metatags e a
+  imagem da prévia do link (`/og.png`), montados pelo endereço em `server.py`.
 - `seed.py`: a demonstração (tudo relativo ao dia de hoje; recusa a pasta com `demo = false`). `practices.py`: criar
   uma prática (com ou sem pediatra; sem, ela entra pelo convite).
 - `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
