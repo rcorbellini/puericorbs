@@ -40,3 +40,16 @@ def _sem_tentativas_antigas():
     from puericorbs import auth
     auth._failures.clear()
     yield
+
+
+def outro_consultorio(s, domain: str | None = None) -> int:
+    """Um consultório de fora (a "Dra. Outra", com a conta outra@demo.test), que nasce com a pediatra na
+    administração dele: as fronteiras entre consultórios se testam contra ele."""
+    from puericorbs.db import connect_platform
+    from puericorbs.practices import create_practice
+    pconn = connect_platform(s.data_dir)
+    try:
+        return create_practice(pconn, s.data_dir, name="Dra. Outra", slug="draoutra", clinician_name="Dra. Outra",
+                               clinician_email="outra@demo.test", password="demo1234", domain=domain)
+    finally:
+        pconn.close()

@@ -19,6 +19,10 @@ O `www.` de um domínio cadastrado volta para o domínio sem ele (301, no `serve
 A sessão vale por domínio (o cookie é do endereço): entrar em `dramarina.com.br` não entra em `drpauloreis.com.br`. A
 mesma conta pode existir nos dois, com papéis diferentes em cada prática.
 
+Quem é do mesmo consultório entra por qualquer domínio dele e cai na prática que é sua (`context.py`). A pediatra que
+entrou no consultório de uma colega e ainda não tem domínio próprio trabalha pelo domínio dela, e as famílias também.
+Quando a plataforma liga o domínio próprio, os dois endereços servem.
+
 O endereço também decide o nome: a página, o app instalado e a prévia do link mostram o nome do consultório
 (`share.py`). O WhatsApp guarda a prévia de cada link por um tempo; depois de mudar o nome em **Consultório**, um link
 já mandado pode mostrar o antigo, e um envio novo mostra o atual. Quem instalou o app antes da troca: no Android o nome
@@ -101,7 +105,8 @@ O painel (`#/admin`, em qualquer domínio nosso, por exemplo https://karitanaves
 Puericorbs: **Ligar domínio** cadastra o domínio no consultório e mostra os dois CNAME a criar no Cloudflare (o destino
 vem de `tunnel_target`, no `config.toml` da produção). O consultório do colega que aceitou o convite aparece lá como
 "sem domínio", com o domínio que ele pediu. No mesmo painel, **Ver como** entra no consultório pelo domínio dele, com a
-tela de quem usa; consultório sem domínio ainda não tem onde entrar.
+tela de quem usa; a pediatra sem domínio próprio entra pelo domínio do consultório dela, e só o consultório sem
+nenhum domínio ainda não tem onde entrar.
 
 ### Para muitos pediatras: Cloudflare for SaaS
 

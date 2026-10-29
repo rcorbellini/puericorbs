@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator
 
-PLATFORM_VERSION = 4
+PLATFORM_VERSION = 5
 PLATFORM_SCHEMA = """
 CREATE TABLE users (
   id INTEGER PRIMARY KEY,
@@ -63,21 +63,32 @@ CREATE TABLE domains (
   practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL
 );
+-- a pediatra na prática dela (os pacientes dela); quem trabalha no consultório inteiro fica em clinic_members
 CREATE TABLE memberships (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('clinician', 'receptionist')),
   PRIMARY KEY (user_id, practice_id)
 );
+-- o consultório (a clínica) com a equipe dele: a atendente atende todas as pediatras do consultório; a administração
+-- do consultório (manager) faz o que a atendente faz e cuida da equipe e dos convites. Nada clínico para as duas.
+CREATE TABLE clinic_members (
+  clinic_id INTEGER NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('receptionist', 'manager')),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (clinic_id, user_id)
+);
 """ + """
--- o convite (invites.py): da equipe de um consultório (staff), do responsável de uma família (family), de um colega
--- que vai ter o próprio consultório (practice) e da administração da plataforma (admin)
+-- o convite (invites.py): da equipe de um consultório (staff: pediatra, atendente ou administração do consultório), do
+-- responsável de uma família (family, que pode chegar pré-preenchido), da pediatra que cria o próprio consultório
+-- (practice) e da administração da plataforma (admin)
 CREATE TABLE invites (
   id INTEGER PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL DEFAULT 'staff' CHECK (kind IN ('staff', 'family', 'practice', 'admin')),
   practice_id INTEGER REFERENCES practices(id) ON DELETE CASCADE,
-  role TEXT CHECK (role IN ('clinician', 'receptionist')),
+  role TEXT CHECK (role IN ('clinician', 'receptionist', 'manager')),
   guardian_id INTEGER,
   label TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -86,7 +97,9 @@ CREATE TABLE invites (
   used_at TEXT,
   used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   revoked_at TEXT,
-  new_practice_id INTEGER REFERENCES practices(id) ON DELETE SET NULL
+  new_practice_id INTEGER REFERENCES practices(id) ON DELETE SET NULL,
+  clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE,
+  prefill TEXT
 );
 -- o que acontece na plataforma (convites, consultórios, domínios, a administração); nunca dado de paciente
 CREATE TABLE platform_log (
@@ -150,7 +163,37 @@ def _platform_v4(conn: sqlite3.Connection) -> None:
     conn.execute(_table(PLATFORM_SCHEMA, "handoffs"))
 
 
-PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4}
+def _platform_v5(conn: sqlite3.Connection) -> None:
+    """O consultório com várias pediatras. Toda prática ganha um consultório (a clínica); a atendente passa a ser do
+    consultório; a pediatra de cada consultório sem administração vira a administração dele; e o convite ganha o
+    consultório, o papel de administração e o pré-preenchimento da família."""
+    now = now_iso()
+    conn.execute(_table(PLATFORM_SCHEMA, "clinic_members"))
+    for p in conn.execute("SELECT id, name, created_at FROM practices WHERE clinic_id IS NULL ORDER BY id").fetchall():
+        cid = conn.execute("INSERT INTO clinics (name, created_at) VALUES (?, ?)", (p["name"], p["created_at"])).lastrowid
+        conn.execute("UPDATE practices SET clinic_id = ? WHERE id = ?", (cid, p["id"]))
+    conn.execute("""INSERT OR IGNORE INTO clinic_members (clinic_id, user_id, role, created_at)
+                    SELECT p.clinic_id, m.user_id, 'receptionist', ? FROM memberships m JOIN practices p ON p.id = m.practice_id
+                    WHERE m.role = 'receptionist'""", (now,))
+    conn.execute("DELETE FROM memberships WHERE role = 'receptionist'")
+    for c in conn.execute("""SELECT id FROM clinics WHERE id NOT IN
+                             (SELECT clinic_id FROM clinic_members WHERE role = 'manager')""").fetchall():
+        first = conn.execute("""SELECT m.user_id FROM memberships m JOIN practices p ON p.id = m.practice_id
+                                WHERE p.clinic_id = ? AND m.role = 'clinician' ORDER BY p.id, m.user_id LIMIT 1""",
+                             (c["id"],)).fetchone()
+        if first:
+            conn.execute("INSERT OR REPLACE INTO clinic_members (clinic_id, user_id, role, created_at) VALUES (?, ?, 'manager', ?)",
+                         (c["id"], first["user_id"], now))
+    cols = ("id, token_hash, kind, practice_id, role, guardian_id, label, created_by, created_at, expires_at, used_at, "
+            "used_by, revoked_at, new_practice_id")
+    conn.execute("ALTER TABLE invites RENAME TO invites_v4")
+    conn.execute(_table(PLATFORM_SCHEMA, "invites"))
+    conn.execute(f"INSERT INTO invites ({cols}) SELECT {cols} FROM invites_v4")
+    conn.execute("DROP TABLE invites_v4")
+
+
+PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4,
+                                                                         5: _platform_v5}
 
 PRACTICE_VERSION = 3
 PRACTICE_SCHEMA = """

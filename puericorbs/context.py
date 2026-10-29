@@ -1,25 +1,32 @@
 """O contexto de cada pedido: o site (qual prática), quem está entrando e com que papel nela.
 
 O papel vem da prática, não do usuário: a mesma conta pode ser a pediatra num domínio e não ter nada em outro. A
-atendente é membro de cada prática que atende; o responsável é um `guardian` com a conta dele na prática.
+pediatra é membro da prática dela; a atendente e a administração do consultório são da equipe do consultório inteiro
+(`clinics.py`) e atendem todas as pediatras dele; o responsável é um `guardian` com a conta dele na prática.
 
-A administração pode entrar num consultório vendo como alguém dele (`api_admin.py`): `user` e `role` passam a ser os
-dessa pessoa, para a tela e as regras serem as dela, e `actor` guarda quem está de fato, que vai para o `audit_log`.
+O domínio abre a prática dele, mas quem é do mesmo consultório entra por qualquer domínio do consultório e é levado à
+prática que é sua (a pediatra sem domínio próprio, a família dela): `site.practice` passa a ser essa, e o banco aberto
+é o dela. Nunca para uma prática de outro consultório, nunca para uma em que a pessoa não tem papel.
+
+A administração da plataforma pode entrar num consultório vendo como alguém dele (`api_admin.py`): `user` e `role`
+passam a ser os dessa pessoa, para a tela e as regras serem as dela, e `actor` guarda quem está de fato, que vai para o
+`audit_log`.
 """
 
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 
 from fastapi import HTTPException, Request
 
-from . import auth, tenancy
+from . import auth, clinics, tenancy
 from .config import Settings
 from .db import connect_platform, connect_practice, insert, many, now_iso, one
 
-ROLE_LABEL = {"clinician": "Pediatra", "receptionist": "Atendente", "guardian": "Família", "admin": "Plataforma"}
+ROLE_LABEL = {"clinician": "Pediatra", "receptionist": "Atendente", "manager": "Administração do consultório",
+              "guardian": "Família", "admin": "Plataforma"}
 
 
 @dataclass
@@ -32,6 +39,7 @@ class Ctx:
     role: str | None = None
     guardians: list[dict] = field(default_factory=list)
     actor: dict | None = None  # a administração, quando está vendo como `user`
+    manages: bool = False      # é da administração do consultório (a pediatra que o criou, ou quem foi convidado)
     ip: str = ""
     now: datetime = field(default_factory=datetime.now)
     _extra: dict = field(default_factory=dict)
@@ -47,6 +55,19 @@ class Ctx:
     @property
     def practice_id(self) -> int | None:
         return self.site.practice["id"] if self.site.practice else None
+
+    @property
+    def clinic_id(self) -> int | None:
+        return self.site.practice["clinic_id"] if self.site.practice else None
+
+    def switch(self, practice: dict) -> None:
+        """Passa o pedido para outra prática do mesmo consultório (a de quem entrou por um domínio que não é o dela)."""
+        if practice["clinic_id"] != self.clinic_id:
+            raise ValueError("só dentro do mesmo consultório")
+        if self.conn:
+            self.conn.close()
+        self.site = replace(self.site, practice=practice)
+        self.conn = connect_practice(self.settings.data_dir, practice["id"])
 
     @property
     def family_ids(self) -> set[int]:
@@ -67,12 +88,14 @@ class Ctx:
                 conn.close()
 
     def audit(self, action: str, entity: str | None = None, entity_id: int | None = None,
-              detail: str | None = None) -> None:
-        if self.conn:
-            insert(self.conn, "audit_log", {"at": now_iso(), "user_id": self.user["id"] if self.user else None,
-                                            "role": self.role, "action": action, "entity": entity,
-                                            "entity_id": entity_id, "ip": self.ip,
-                                            "actor_id": self.actor["id"] if self.actor else None, "detail": detail})
+              detail: str | None = None, conn: sqlite3.Connection | None = None) -> None:
+        """No registro desta prática ou, com `conn`, no de outra do consultório (a recepção atende todas)."""
+        conn = conn or self.conn
+        if conn:
+            insert(conn, "audit_log", {"at": now_iso(), "user_id": self.user["id"] if self.user else None,
+                                       "role": self.role, "action": action, "entity": entity,
+                                       "entity_id": entity_id, "ip": self.ip,
+                                       "actor_id": self.actor["id"] if self.actor else None, "detail": detail})
 
 
 def _act_as(ctx: Ctx, acting: dict) -> None:
@@ -81,9 +104,14 @@ def _act_as(ctx: Ctx, acting: dict) -> None:
     if acting["as_user_id"]:
         target = one(ctx.pconn, """SELECT u.*, m.role AS member_role FROM memberships m JOIN users u ON u.id = m.user_id
                                    WHERE m.user_id = ? AND m.practice_id = ?""", (acting["as_user_id"], ctx.practice_id))
+        team = clinics.member(ctx.pconn, ctx.clinic_id, acting["as_user_id"])
+        if not target and team:  # a atendente ou a administração do consultório
+            target = one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (acting["as_user_id"],))
+            target["member_role"] = "receptionist"
         if target:
             target.pop("password_hash", None)
             ctx.actor, ctx.role, ctx.user = ctx.user, target.pop("member_role"), target
+            ctx.manages = bool(team and team["role"] == "manager")
         return
     g = one(ctx.conn, "SELECT * FROM guardians WHERE id = ?", (acting["as_guardian_id"] or 0,))
     if not g:
@@ -100,6 +128,35 @@ def _act_as(ctx: Ctx, acting: dict) -> None:
         ctx.guardians = [g]
 
 
+def _role(ctx: Ctx) -> None:
+    """O papel de quem entrou, e a prática em que ele fica. Pela ordem: a pediatra desta prática; a pediatra de outra
+    prática do consultório (vai para a dela); a equipe do consultório (fica nesta); o responsável de uma família desta
+    prática; o de outra prática do consultório (vai para a dela)."""
+    uid = ctx.user["id"]
+    team = clinics.member(ctx.pconn, ctx.clinic_id, uid)
+    ctx.manages = bool(team and team["role"] == "manager")
+    member = one(ctx.pconn, "SELECT role FROM memberships WHERE user_id = ? AND practice_id = ?", (uid, ctx.practice_id))
+    if member:
+        ctx.role = member["role"]
+        return
+    own = clinics.own_practice(ctx.pconn, ctx.clinic_id, uid)
+    if own:
+        ctx.switch(own)
+        ctx.role = "clinician"
+        return
+    if team:
+        ctx.role = "receptionist"
+        return
+    ctx.guardians = many(ctx.conn, "SELECT * FROM guardians WHERE user_id = ?", (uid,))
+    if not ctx.guardians:
+        other = clinics.guardian_practice(ctx.pconn, ctx.settings.data_dir, ctx.clinic_id, uid, skip=ctx.practice_id)
+        if other:
+            ctx.switch(other)
+            ctx.guardians = many(ctx.conn, "SELECT * FROM guardians WHERE user_id = ?", (uid,))
+    if ctx.guardians:
+        ctx.role = "guardian"
+
+
 def build(request: Request, settings: Settings) -> Ctx:
     pconn = connect_platform(settings.data_dir)
     site = tenancy.resolve(settings, pconn, request.headers.get("host"), request.cookies.get(tenancy.SITE_COOKIE))
@@ -110,17 +167,15 @@ def build(request: Request, settings: Settings) -> Ctx:
     acting = ctx.user.pop("acting") if ctx.user else None
     if site.practice:
         ctx.conn = connect_practice(settings.data_dir, site.practice["id"])
-        if acting and acting["as_practice_id"] == site.practice["id"] and ctx.user["is_platform_admin"]:
-            _act_as(ctx, acting)
+        if acting and ctx.user["is_platform_admin"]:
+            # a entrada vale neste consultório: na prática deste domínio ou noutra do mesmo consultório (a sem domínio)
+            target = one(pconn, "SELECT * FROM practices WHERE id = ?", (acting["as_practice_id"],))
+            if target and target["clinic_id"] == ctx.clinic_id:
+                if target["id"] != ctx.practice_id:
+                    ctx.switch(target)
+                _act_as(ctx, acting)
         if ctx.user and not ctx.actor:
-            member = one(pconn, "SELECT role FROM memberships WHERE user_id = ? AND practice_id = ?",
-                         (ctx.user["id"], site.practice["id"]))
-            if member:
-                ctx.role = member["role"]
-            else:
-                ctx.guardians = many(ctx.conn, "SELECT * FROM guardians WHERE user_id = ?", (ctx.user["id"],))
-                if ctx.guardians:
-                    ctx.role = "guardian"
+            _role(ctx)
     elif ctx.user and ctx.user["is_platform_admin"]:
         ctx.role = "admin"
     return ctx
@@ -175,11 +230,23 @@ def family_patient(ctx: Ctx, patient_id: int) -> dict:
 
 
 def staff_practices(ctx: Ctx) -> list[dict]:
-    """As práticas em que quem pede trabalha, na mesma clínica da prática deste site (a recepção compartilhada)."""
+    """As práticas em que quem pede trabalha, no consultório deste site. A pediatra: só a dela, mesmo quando cuida do
+    consultório (cada pediatra vê só os seus pacientes). A atendente e a administração que não é pediatra: todas as
+    pediatras do consultório, sem nada clínico (`receptionist`)."""
     staff(ctx)
     rows = many(ctx.pconn, """
         SELECT p.*, m.role FROM memberships m JOIN practices p ON p.id = m.practice_id
-        WHERE m.user_id = ? ORDER BY p.name""", (ctx.user["id"],))
-    clinic = ctx.practice["clinic_id"]
-    mine = [r for r in rows if r["id"] == ctx.practice_id or (clinic and r["clinic_id"] == clinic)]
-    return sorted(mine, key=lambda r: (r["id"] != ctx.practice_id, r["name"]))  # o consultório deste site primeiro
+        WHERE m.user_id = ? AND (p.id = ? OR p.clinic_id = ?)""", (ctx.user["id"], ctx.practice_id, ctx.clinic_id))
+    mine = {r["id"]: r for r in rows}
+    doctor = any(r["role"] == "clinician" for r in rows)
+    if not doctor and clinics.member(ctx.pconn, ctx.clinic_id, ctx.user["id"]):
+        for p in clinics.practices(ctx.pconn, ctx.clinic_id):
+            mine.setdefault(p["id"], {**p, "role": "receptionist"})
+    return sorted(mine.values(), key=lambda r: (r["id"] != ctx.practice_id, r["name"]))  # a deste site primeiro
+
+
+def manager(ctx: Ctx) -> None:
+    """A equipe e os convites do consultório: só a administração dele."""
+    staff(ctx)
+    if not ctx.manages:
+        raise HTTPException(403, "Só a administração do consultório cuida da equipe e dos convites.")

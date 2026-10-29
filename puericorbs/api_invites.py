@@ -1,5 +1,5 @@
-"""Os convites na API: abrir e aceitar (quem foi convidado) e gerar (a pediatra e a recepção). Os tipos e onde cada
-um abre estão em `invites.py`; o que a administração gera está em `api_admin.py`.
+"""Os convites na API: abrir e aceitar (quem foi convidado) e gerar (a administração do consultório, a pediatra e a
+recepção). Os tipos e onde cada um abre estão em `invites.py`; o que a plataforma gera está em `api_admin.py`.
 
 Regra de ouro: uma conta que já existe só se liga a um consultório, a uma família ou à administração com a senha
 dela. O convite cria a senha de quem ainda não tem conta; nunca escolhe a senha de uma conta alheia.
@@ -12,10 +12,10 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
-from . import auth, invites, practices, tenancy
+from . import auth, clinics, invites, practices, tenancy
 from .api_public import login_user, password_ok, practice_public
 from .api_staff import _practice
-from .context import ROLE_LABEL, Ctx, clinician, dep
+from .context import ROLE_LABEL, Ctx, dep, manager, staff
 from .db import connect_practice, insert, many, now_iso, one, transaction, update
 
 router = APIRouter(prefix="/api")
@@ -44,7 +44,7 @@ def clean_host(text: str | None) -> str | None:
 
 def _open(ctx: Ctx, token: str) -> dict:
     row = invites.find(ctx.pconn, token)
-    if not row or not invites.opens_here(row, ctx.site):
+    if not row or not invites.opens_here(ctx.pconn, row, ctx.site):
         raise HTTPException(404, "Este convite não vale mais: ele já foi usado, foi cancelado ou venceu. "
                                  "Peça um novo a quem mandou.")
     return row
@@ -61,7 +61,8 @@ def _guardian(ctx: Ctx, row: dict) -> dict:
 def _keeps_password(ctx: Ctx, user: dict, practice_id: int | None) -> bool:
     """A conta que o convite da família não pode trocar a senha: a da equipe, a da administração e a de quem também é
     responsável em outro consultório (lá, quem cuida da conta é a própria pessoa)."""
-    if user["is_platform_admin"] or one(ctx.pconn, "SELECT 1 AS ok FROM memberships WHERE user_id = ?", (user["id"],)):
+    if user["is_platform_admin"] or one(ctx.pconn, "SELECT 1 AS ok FROM memberships WHERE user_id = ?", (user["id"],)) \
+            or one(ctx.pconn, "SELECT 1 AS ok FROM clinic_members WHERE user_id = ?", (user["id"],)):
         return True
     for p in many(ctx.pconn, "SELECT id FROM practices WHERE id != ?", (practice_id,)):
         conn = connect_practice(ctx.settings.data_dir, p["id"])
@@ -77,10 +78,14 @@ def _keeps_password(ctx: Ctx, user: dict, practice_id: int | None) -> bool:
 def invite_info(token: str, ctx: Ctx = Depends(dep)):
     row = _open(ctx, token)
     out = {"kind": row["kind"], "expires_at": row["expires_at"]}
-    if row["kind"] in ("staff", "family"):
-        out["practice"] = practice_public(ctx.site.practice)
+    if row["kind"] == "family" or (row["kind"] == "staff" and row["practice_id"]):
+        p = one(ctx.pconn, "SELECT * FROM practices WHERE id = ?", (row["practice_id"],))
+        out["practice"] = practice_public(p)
     if row["kind"] == "staff":
-        out.update(role=row["role"], role_label=ROLE_LABEL[row["role"]])
+        clinic = one(ctx.pconn, "SELECT name FROM clinics WHERE id = ?", (invites.clinic_of(ctx.pconn, row),))
+        others = clinics.practices(ctx.pconn, invites.clinic_of(ctx.pconn, row))
+        out.update(role=row["role"], role_label=invites.ROLE_LABEL[row["role"]], clinic=clinic["name"] if clinic else None,
+                   doctors=[p["name"] for p in others], label=row["label"])
     elif row["kind"] == "family":
         g = _guardian(ctx, row)
         user = one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (g["user_id"],)) if g["user_id"] else None
@@ -98,6 +103,7 @@ class InviteAccept(BaseModel):
     name: str | None = None
     email: str | None = None
     practice_name: str | None = None
+    clinic_name: str | None = None
     registry: str | None = None
     domain: str | None = None
 
@@ -139,22 +145,40 @@ def _spend(ctx: Ctx, row: dict, user_id: int, new_practice_id: int | None = None
 
 
 def _accept_staff(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
+    """A equipe do consultório. A pediatra entra com a prática dela (os pacientes só dela), no consultório de quem
+    convidou; a atendente e a administração entram no consultório inteiro. O convite de pediatra com `practice_id` é
+    o da plataforma para um consultório criado vazio: ela vira a pediatra dele."""
     name, email = _name(body.name), _email(body.email)
     _new_password(body.password)
+    clinic_id = invites.clinic_of(ctx.pconn, row)
     uid = _account_for(ctx, email, name, body.password)
     _spend(ctx, row, uid)
-    # quem já é da equipe deste consultório continua com o papel que tem (o convite não rebaixa ninguém)
-    ctx.pconn.execute("INSERT OR IGNORE INTO memberships (user_id, practice_id, role) VALUES (?, ?, ?)",
-                      (uid, row["practice_id"], row["role"]))
-    if row["role"] == "clinician":
+    practice_id = row["practice_id"]
+    if row["role"] == "clinician" and practice_id:
+        ctx.pconn.execute("INSERT OR IGNORE INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')",
+                          (uid, practice_id))
         changes = {}
         if (body.practice_name or "").strip():
             changes["name"] = body.practice_name.strip()[:80]
         if body.registry is not None:
             changes["registry"] = body.registry.strip()[:80] or None
-        update(ctx.pconn, "practices", row["practice_id"], changes)
-    invites.log(ctx.pconn, "convite_aceito", user_id=uid, practice_id=row["practice_id"],
-                detail=f"equipe ({ROLE_LABEL[row['role']].lower()}): {name}", ip=ctx.ip)
+        update(ctx.pconn, "practices", practice_id, changes)
+        if not one(ctx.pconn, "SELECT 1 AS ok FROM clinic_members WHERE clinic_id = ? AND role = 'manager'", (clinic_id,)):
+            clinics.add(ctx.pconn, clinic_id, uid, "manager")  # a primeira pediatra cuida do consultório
+    elif row["role"] == "clinician":
+        if clinics.own_practice(ctx.pconn, clinic_id, uid):
+            raise HTTPException(409, "Esta conta já é pediatra neste consultório. Entre com ela.")
+        site_name = (body.practice_name or "").strip()[:80] or name
+        practice_id = practices.create_practice(
+            ctx.pconn, ctx.settings.data_dir, name=site_name, slug=practices.free_slug(ctx.pconn, site_name),
+            registry=(body.registry or "").strip()[:80] or None, clinic_id=clinic_id)
+        ctx.pconn.execute("INSERT INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')",
+                          (uid, practice_id))
+        ctx.pconn.execute("UPDATE invites SET new_practice_id = ? WHERE id = ?", (practice_id, row["id"]))
+    else:
+        clinics.add(ctx.pconn, clinic_id, uid, row["role"])
+    invites.log(ctx.pconn, "convite_aceito", user_id=uid, practice_id=practice_id,
+                detail=f"equipe ({invites.ROLE_LABEL[row['role']].lower()}): {name}", ip=ctx.ip)
     return {"login": uid}
 
 
@@ -183,6 +207,7 @@ def _accept_family(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
 
 
 def _accept_practice(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
+    """A pediatra que cria o próprio consultório: ele nasce com a prática dela, e ela na administração dele."""
     name, email = _name(body.name), _email(body.email)
     _new_password(body.password)
     site_name = (body.practice_name or "").strip()[:80] or name
@@ -191,11 +216,14 @@ def _accept_practice(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
     _spend(ctx, row, uid)  # antes de criar o consultório: dois cliques ao mesmo tempo não criam dois
     slug = practices.free_slug(ctx.pconn, site_name)
     pid = practices.create_practice(ctx.pconn, ctx.settings.data_dir, name=site_name, slug=slug,
-                                    registry=(body.registry or "").strip()[:80] or None, requested_domain=requested)
+                                    registry=(body.registry or "").strip()[:80] or None, requested_domain=requested,
+                                    clinic_name=(body.clinic_name or "").strip()[:80] or site_name)
+    clinic_id = one(ctx.pconn, "SELECT clinic_id FROM practices WHERE id = ?", (pid,))["clinic_id"]
     ctx.pconn.execute("INSERT INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')", (uid, pid))
+    clinics.add(ctx.pconn, clinic_id, uid, "manager")
     ctx.pconn.execute("UPDATE invites SET new_practice_id = ? WHERE id = ?", (pid, row["id"]))
     invites.log(ctx.pconn, "consultorio_criado", user_id=uid, practice_id=pid,
-                detail=f"{site_name}, pelo convite de colega; domínio pedido: {requested or 'nenhum'}", ip=ctx.ip)
+                detail=f"{site_name}, pelo convite da plataforma; domínio pedido: {requested or 'nenhum'}", ip=ctx.ip)
     return {"practice": {"name": site_name, "slug": slug}, "requested_domain": requested}
 
 
@@ -223,55 +251,65 @@ def invite_accept(token: str, body: InviteAccept, request: Request, response: Re
     return {"ok": True, **result}
 
 
-# ---- a pediatra: a equipe e os colegas --------------------------------------------------------------------------------
+# ---- a equipe do consultório: a administração convida e tira; quem é da equipe vê --------------------------------------
 
 @router.get("/staff/team")
 def team(ctx: Ctx = Depends(dep)):
-    clinician(ctx)
-    members = many(ctx.pconn, """
-        SELECT u.id, u.name, u.email, m.role, (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id) AS last_login
-        FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.practice_id = ? ORDER BY m.role, u.name""",
-                   (ctx.practice_id,))
+    staff(ctx)
+    clinic = one(ctx.pconn, "SELECT * FROM clinics WHERE id = ?", (ctx.clinic_id,))
     rows = many(ctx.pconn, """SELECT i.*, p.name AS new_practice FROM invites i
                               LEFT JOIN practices p ON p.id = i.new_practice_id
-                              WHERE i.practice_id = ? AND i.kind IN ('staff', 'practice')
-                              ORDER BY i.created_at DESC LIMIT 30""", (ctx.practice_id,))
-    return {"members": [{**m, "role_label": ROLE_LABEL[m["role"]], "me": m["id"] == ctx.user["id"]} for m in members],
-            "invites": [{**invites.view(r), "new_practice": r["new_practice"]} for r in rows]}
+                              WHERE i.kind = 'staff' AND i.clinic_id = ? ORDER BY i.created_at DESC LIMIT 30""",
+                (ctx.clinic_id,))
+    members = clinics.team(ctx.pconn, ctx.clinic_id)
+    for m in members:
+        m["role_label"] = ROLE_LABEL["manager"] if m["role"] == "manager" else ROLE_LABEL[m["role"]]
+        m["me"] = m["id"] == ctx.user["id"]
+    return {"clinic": {"id": clinic["id"], "name": clinic["name"]}, "members": members, "can_manage": ctx.manages,
+            "invites": [{**invites.view(r), "new_practice": r["new_practice"]} for r in rows] if ctx.manages else []}
 
 
 class StaffInvite(BaseModel):
-    kind: str
+    role: str
     label: str | None = None
+
+
+def invite_text(role: str, label: str | None, clinic: str, link: str) -> str:
+    """A mensagem pronta para mandar com o link (WhatsApp, e-mail, o que for)."""
+    hi = f"Olá, {label.split()[0]}!" if label else "Olá!"
+    what = {"clinician": "atender pelo Puericorbs, com a sua agenda e os seus pacientes, só seus",
+            "receptionist": "cuidar da agenda, do cadastro e do dinheiro pelo Puericorbs",
+            "manager": "cuidar da equipe e da recepção pelo Puericorbs"}[role]
+    return f"{hi} {clinic} convidou você para {what}. Crie a sua senha por este link (vale 7 dias): {link}"
 
 
 @router.post("/staff/invites")
 def staff_invite(body: StaffInvite, request: Request, ctx: Ctx = Depends(dep)):
-    """A atendente deste consultório, ou um colega que vai ter o consultório dele (e não vê nada deste)."""
-    clinician(ctx)
-    if body.kind not in ("receptionist", "colleague"):
-        raise HTTPException(400, "Escolha o convite: atendente ou colega.")
+    """Uma pediatra (que entra com os pacientes dela), uma atendente (de todas as pediatras) ou mais alguém da
+    administração, para este consultório."""
+    manager(ctx)
+    if body.role not in invites.ROLES:
+        raise HTTPException(400, "Escolha quem você convida: pediatra, atendente ou administração.")
+    clinic = one(ctx.pconn, "SELECT * FROM clinics WHERE id = ?", (ctx.clinic_id,))
     with transaction(ctx.pconn):
-        if body.kind == "receptionist":
-            token, iid = invites.create(ctx.pconn, kind="staff", practice_id=ctx.practice_id, role="receptionist",
-                                        label=body.label, created_by=ctx.user["id"])
-        else:
-            token, iid = invites.create(ctx.pconn, kind="practice", practice_id=ctx.practice_id, label=body.label,
-                                        created_by=ctx.user["id"])
+        token, iid = invites.create(ctx.pconn, kind="staff", clinic_id=ctx.clinic_id, role=body.role,
+                                    label=body.label, created_by=ctx.user["id"])
         invites.log(ctx.pconn, "convite_gerado", user_id=ctx.user["id"], practice_id=ctx.practice_id,
-                    detail=("atendente" if body.kind == "receptionist" else "colega") + (f": {body.label}" if body.label else ""),
-                    ip=ctx.ip)
-    return {"link": request_link(request, token),
+                    detail=invites.ROLE_LABEL[body.role].lower() + (f": {body.label}" if body.label else ""), ip=ctx.ip)
+    link = request_link(request, token)
+    return {"link": link, "text": invite_text(body.role, body.label, clinic["name"], link),
             "invite": invites.view(one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (iid,)))}
 
 
 @router.post("/staff/invites/{invite_id}/revoke")
 def staff_revoke(invite_id: int, ctx: Ctx = Depends(dep)):
-    row = one(ctx.pconn, "SELECT * FROM invites WHERE id = ? AND practice_id = ?", (invite_id, ctx.practice_id))
+    row = one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (invite_id,))
     if row and row["kind"] == "family":
-        _practice(ctx, None)  # a família: a pediatra ou a recepção
+        _practice(ctx, row["practice_id"])  # a família: a pediatra dela ou a recepção do consultório
     else:
-        clinician(ctx)
+        manager(ctx)
+        if row and row["clinic_id"] != ctx.clinic_id:
+            row = None
     if not row:
         raise HTTPException(404, "Convite não encontrado.")
     invites.revoke(ctx.pconn, invite_id)
@@ -282,14 +320,19 @@ def staff_revoke(invite_id: int, ctx: Ctx = Depends(dep)):
 
 @router.delete("/staff/team/{user_id}")
 def remove_member(user_id: int, ctx: Ctx = Depends(dep)):
-    """Tirar o acesso da atendente que saiu. A pediatra não sai por aqui."""
-    clinician(ctx)
-    m = one(ctx.pconn, "SELECT role FROM memberships WHERE user_id = ? AND practice_id = ?", (user_id, ctx.practice_id))
+    """Tirar o acesso de quem saiu da equipe (atendente ou administração). A pediatra não sai por aqui: os pacientes
+    são dela, e a saída dela do consultório passa pela plataforma."""
+    manager(ctx)
+    m = clinics.member(ctx.pconn, ctx.clinic_id, user_id)
     if not m:
+        if clinics.own_practice(ctx.pconn, ctx.clinic_id, user_id):
+            raise HTTPException(400, "A pediatra não sai por aqui: os pacientes são dela. Fale com a plataforma.")
         raise HTTPException(404, "Esta pessoa não é da equipe deste consultório.")
-    if m["role"] != "receptionist":
-        raise HTTPException(400, "Só o acesso da atendente sai por aqui.")
-    ctx.pconn.execute("DELETE FROM memberships WHERE user_id = ? AND practice_id = ?", (user_id, ctx.practice_id))
+    others = ctx.pconn.execute("SELECT COUNT(*) FROM clinic_members WHERE clinic_id = ? AND role = 'manager' AND user_id != ?",
+                               (ctx.clinic_id, user_id)).fetchone()[0]
+    if m["role"] == "manager" and not others:
+        raise HTTPException(400, "O consultório precisa de alguém na administração. Convide outra pessoa antes.")
+    ctx.pconn.execute("DELETE FROM clinic_members WHERE clinic_id = ? AND user_id = ?", (ctx.clinic_id, user_id))
     who = one(ctx.pconn, "SELECT name FROM users WHERE id = ?", (user_id,))
     invites.log(ctx.pconn, "equipe_removida", user_id=ctx.user["id"], practice_id=ctx.practice_id,
                 detail=who["name"] if who else None, ip=ctx.ip)

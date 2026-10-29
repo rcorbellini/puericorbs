@@ -7,17 +7,17 @@
 
 | Termo | No código | O que é |
 |---|---|---|
-| Prática | `practice` | o consultório de um pediatra (ou de um grupo que divide a carteira); dona dos pacientes, do prontuário, dos serviços e do dinheiro |
-| Clínica | `clinic` | o lugar e a equipe que várias práticas dividem; não é dona de paciente |
+| Prática | `practice` | a parte de uma pediatra dentro do consultório; dona dos pacientes, do prontuário, dos serviços e do dinheiro |
+| Consultório, clínica | `clinic` | o lugar e a equipe que uma ou mais pediatras dividem; não é dono de paciente (`clinics.py`) |
 | Unidade | `location` | endereço onde se atende |
 | Sala | `room` | consultório físico dentro da unidade |
 | Membro | `member` | um usuário numa clínica ou prática, com um papel |
 | Pediatra | papel `clinician` | o médico da prática (o nome genérico deixa espaço para outros profissionais) |
-| Atendente | papel `receptionist` | a secretária ou a recepção |
-| Gestor da clínica | papel `clinic_manager` | cuida do lugar, das salas e do repasse; nada clínico |
+| Atendente | papel `receptionist` (`clinic_members`) | a secretária ou a recepção do consultório, que atende todas as pediatras dele |
+| Administração do consultório | `clinic_members.role = 'manager'`, `ctx.manages` | faz o que a atendente faz e cuida da equipe e dos convites; nada clínico. A pediatra que criou o consultório já nasce nela |
 | Família | `family` | o grupo de responsáveis e crianças |
 | Responsável | `guardian` | o adulto ligado à família, com papéis `legal`, `financial` e `caregiver` |
-| Convite | `invite` | o link de uso único com que alguém cria a conta: equipe (`staff`), família (`family`), colega com consultório próprio (`practice`) e administração (`admin`) |
+| Convite | `invite` | o link de uso único com que alguém cria a conta: a equipe do consultório (`staff`: pediatra, atendente, administração), a família (`family`), a pediatra que cria o consultório (`practice`) e a administração da plataforma (`admin`) |
 | Administração da plataforma | `is_platform_admin`, painel `#/admin` | quem acompanha os consultórios, liga os domínios e entra em cada um vendo como quem usa |
 | Vendo como | `ctx.actor`, `handoffs`, `sessions.as_*` | a administração dentro de um consultório com a tela e as ações de alguém dele; a faixa no topo avisa, e o registro guarda quem estava de fato |
 | Paciente, criança | `patient` | a criança atendida |

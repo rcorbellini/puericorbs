@@ -26,8 +26,14 @@ function parse() {
   return { name: name || '', id: id ? Number(id) : null, query: Object.fromEntries(new URLSearchParams(query)) };
 }
 
+// o que cada um vê na barra: a pediatra, tudo da prática dela; a recepção, o dia de todas as pediatras; a administração
+// do consultório, o mesmo que a recepção e a equipe (Consultório)
+const menu = (app) => (app.me.role === 'clinician' ? CLINICIAN
+  : app.me.manages ? [...RECEPTION, 'sep', ['consultorio', 'Consultório', 'globe']] : RECEPTION);
+const allowed = (app, name) => !CLINICIAN_ONLY.has(name) || app.me.role === 'clinician' || (name === 'consultorio' && app.me.manages);
+
 function shell(app) {
-  const items = app.me.role === 'clinician' ? CLINICIAN : RECEPTION;
+  const items = menu(app);
   const root = document.getElementById('app');
   const theme = app.theme();
   root.innerHTML = String(html`
@@ -78,7 +84,7 @@ export async function route(app, opts = {}) {
   if (!document.getElementById('shell')) shell(app);
   let { name, id, query } = parse();
   const home = app.me.role === 'clinician' ? 'hoje' : 'recepcao';
-  if (!name || !VIEWS[name] || (CLINICIAN_ONLY.has(name) && app.me.role !== 'clinician')) {
+  if (!name || !VIEWS[name] || !allowed(app, name)) {
     if (name && name !== home) history.replaceState(null, '', `#/${home}`);
     name = home;
   }

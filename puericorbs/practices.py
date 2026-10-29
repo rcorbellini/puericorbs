@@ -1,5 +1,6 @@
-"""Criar uma prática: a linha na plataforma, o domínio, a conta do pediatra e o banco dela com o começo pronto
-(o catálogo de serviços, a grade de segunda a sexta e as vagas protegidas para a criança doente)."""
+"""Criar uma prática: a linha na plataforma, o consultório (um novo, se ela não entra num que já existe), o domínio, a
+conta do pediatra e o banco dela com o começo pronto (o catálogo de serviços, a grade de segunda a sexta e as vagas
+protegidas para a criança doente)."""
 
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from . import auth, catalog, tenancy
+from . import auth, catalog, clinics, tenancy
 from .db import connect_practice, insert, now_iso, one, transaction
 
 ACCENTS = ("agua", "azul", "coral", "lavanda")
@@ -48,8 +49,10 @@ def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slu
                     clinician_name: str | None = None, clinician_email: str | None = None, password: str | None = None,
                     domain: str | None = None, accent: str = "agua", registry: str | None = None,
                     bio: str | None = None, clinic_id: int | None = None, address: str | None = None,
-                    phone: str | None = None, title: str | None = None, requested_domain: str | None = None) -> int:
-    """Sem `clinician_email`, a prática nasce sem ninguém: a pediatra entra pelo convite (`invites.py`)."""
+                    phone: str | None = None, title: str | None = None, requested_domain: str | None = None,
+                    clinic_name: str | None = None) -> int:
+    """Sem `clinician_email`, a prática nasce sem ninguém: a pediatra entra pelo convite (`invites.py`). Sem
+    `clinic_id`, nasce num consultório novo, e a pediatra dele (se vier junto) é a administração do consultório."""
     slug = slug.strip().lower()
     if not tenancy.SLUG.match(slug):
         raise HTTPException(400, "O endereço curto só aceita letras minúsculas, números e hífen (ex.: dramarina).")
@@ -61,6 +64,9 @@ def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slu
     if accent not in ACCENTS:
         accent = "agua"
     with transaction(pconn):
+        new_clinic = not clinic_id
+        if new_clinic:
+            clinic_id = clinics.create(pconn, clinic_name or name)
         pid = insert(pconn, "practices", {"slug": slug, "name": name.strip(), "registry": registry, "bio": bio,
                                           "accent": accent, "clinic_id": clinic_id, "address": address,
                                           "phone": phone, "requested_domain": requested_domain,
@@ -76,6 +82,8 @@ def create_practice(pconn: sqlite3.Connection, data_dir: Path, *, name: str, slu
                 "password_hash": auth.hash_password(password) if password else None, "created_at": now_iso()})
             pconn.execute("INSERT OR REPLACE INTO memberships (user_id, practice_id, role) VALUES (?, ?, 'clinician')",
                           (uid, pid))
+            if new_clinic:
+                clinics.add(pconn, clinic_id, uid, "manager")
     conn = connect_practice(data_dir, pid)
     try:
         init_practice_db(conn)

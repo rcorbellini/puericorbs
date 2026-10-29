@@ -6,7 +6,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from conftest import H, client
+from conftest import H, client, outro_consultorio
 from fastapi.testclient import TestClient
 
 from puericorbs import config, invites
@@ -103,17 +103,20 @@ def test_familia_cria_a_senha_pelo_link_da_recepcao(fresh):
 
 
 def test_so_a_equipe_gera_o_link_da_familia_e_ele_so_abre_no_consultorio(fresh):
+    outro_consultorio(fresh)
     marina = client(fresh, "dramarina.localhost", "marina@demo.test")
     pid, gid = nova_familia(marina, "lara@exemplo.test")
     ana = client(fresh, "dramarina.localhost", "ana@demo.test")
     assert ana.post(f"/api/staff/guardians/{gid}/invite", headers=H).status_code == 403
     token = token_of(marina.post(f"/api/staff/guardians/{gid}/invite", headers=H).json()["link"])
-    assert TestClient(create_app(fresh), base_url="http://drpauloreis.localhost").get(f"/api/invite/{token}").status_code == 404
-    # o id 1 existe nos dois bancos (a Ana aqui, outra pessoa lá): o link da Ana não abre no site do Paulo
+    fora = TestClient(create_app(fresh), base_url="http://draoutra.localhost")
+    assert fora.get(f"/api/invite/{token}").status_code == 404
+    # no site do Paulo, que é do mesmo consultório, abre; e o responsável vem do banco da Marina (o id 1 existe nos
+    # dois bancos: a Ana aqui, outra pessoa lá)
     ana = token_of(marina.post("/api/staff/guardians/1/invite", headers=H).json()["link"])
-    paulo_site = TestClient(create_app(fresh), base_url="http://drpauloreis.localhost")
-    assert paulo_site.get(f"/api/invite/{ana}").status_code == 404
-    assert paulo_site.post(f"/api/invite/{ana}", json={"password": "qualquer-senha"}, headers=H).status_code == 404
+    info = TestClient(create_app(fresh), base_url="http://drpauloreis.localhost").get(f"/api/invite/{ana}").json()
+    assert info["guardian"]["name"] == "Ana Costa" and info["practice"]["name"] == "Dra. Marina Alves"
+    assert fora.post(f"/api/invite/{ana}", json={"password": "qualquer-senha"}, headers=H).status_code == 404
     # o Paulo não alcança o responsável da Marina: o id é de outro banco
     paulo = client(fresh, "drpauloreis.localhost", "paulo@demo.test")
     lins = paulo.get("/api/staff/patients?q=Lins").json()["patients"][0]
@@ -164,57 +167,6 @@ def test_familia_so_deste_consultorio_troca_a_senha_esquecida(fresh):
     r = TestClient(create_app(fresh), base_url="http://dramarina.localhost").post(
         "/api/auth/login", json={"email": "ana@demo.test", "password": "demo1234"}, headers=H)
     assert r.status_code == 401
-
-
-def test_a_pediatra_convida_e_tira_a_atendente(fresh):
-    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
-    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
-    assert carla.post("/api/staff/invites", json={"kind": "receptionist"}, headers=H).status_code == 403
-    assert carla.post("/api/staff/invites", json={"kind": "colleague"}, headers=H).status_code == 403
-    assert carla.get("/api/staff/team").status_code == 403
-    x = marina.post("/api/staff/invites", json={"kind": "receptionist", "label": "Bia"}, headers=H).json()
-    bia = TestClient(create_app(fresh), base_url="http://dramarina.localhost")
-    assert bia.post(f"/api/invite/{token_of(x['link'])}", headers=H,
-                    json={"name": "Bia Souza", "email": "bia@exemplo.test", "password": "senha-da-bia"}).status_code == 200
-    assert bia.get("/api/me").json()["me"]["role"] == "receptionist"
-    equipe = marina.get("/api/staff/team").json()
-    bia_id = next(m["id"] for m in equipe["members"] if m["email"] == "bia@exemplo.test")
-    assert any(i["status"] == "aceito" and i["label"] == "Bia" for i in equipe["invites"])
-    # a pediatra não sai por aqui; a atendente sai
-    marina_id = next(m["id"] for m in equipe["members"] if m["role"] == "clinician")
-    assert marina.delete(f"/api/staff/team/{marina_id}", headers=H).status_code == 400
-    assert marina.delete(f"/api/staff/team/{bia_id}", headers=H).status_code == 200
-    assert bia.get("/api/staff/patients").status_code == 403
-
-
-def test_colega_ganha_o_proprio_consultorio_e_ninguem_ve_o_do_outro(fresh):
-    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
-    x = marina.post("/api/staff/invites", json={"kind": "colleague", "label": "João"}, headers=H).json()
-    joao = TestClient(create_app(fresh), base_url="http://dramarina.localhost")
-    info = joao.get(f"/api/invite/{token_of(x['link'])}").json()
-    assert info["kind"] == "practice" and info["inviter"] == "Dra. Marina Alves" and "practice" not in info
-    r = joao.post(f"/api/invite/{token_of(x['link'])}", headers=H, json={
-        "name": "João Lima", "practice_name": "Dr. João Lima", "registry": "CRM-SP 123", "email": "joao@exemplo.test",
-        "password": "senha-do-joao", "domain": "https://www.drjoaolima.com.br/"})
-    assert r.status_code == 200, r.text
-    assert r.json()["practice"]["slug"] == "drjoaolima" and r.json()["requested_domain"] == "drjoaolima.com.br"
-    # no site da Marina ele não entra; ela não entra no dele
-    assert joao.get("/api/me").json()["me"] is None
-    pconn = connect_platform(fresh.data_dir)
-    novo = one(pconn, "SELECT * FROM practices WHERE slug = 'drjoaolima'")
-    assert one(pconn, "SELECT role FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.email = 'joao@exemplo.test' "
-                      "AND m.practice_id = ?", (novo["id"],))["role"] == "clinician"
-    assert not one(pconn, "SELECT 1 AS x FROM memberships m JOIN users u ON u.id = m.user_id WHERE u.email = 'marina@demo.test' "
-                          "AND m.practice_id = ?", (novo["id"],))
-    pconn.close()
-    assert connect_practice(fresh.data_dir, novo["id"]).execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 0
-    assert any(i["new_practice"] == "Dr. João Lima" for i in marina.get("/api/staff/team").json()["invites"])
-    # a administração liga o domínio; ele entra no dele e não vê ninguém da Marina
-    dono = admin(fresh)
-    assert dono.post(f"/api/admin/practices/{novo['id']}/domains", json={"host": "drjoaolima.com.br"}, headers=H).status_code == 200
-    j = entra(fresh, "drjoaolima.com.br", "joao@exemplo.test", "senha-do-joao")
-    assert j.get("/api/staff/patients").json()["patients"] == []
-    assert j.get("/api/staff/patients?practice_id=1").status_code == 404
 
 
 def test_painel_mostra_numeros_e_a_ficha_so_abre_vendo_como(fresh):

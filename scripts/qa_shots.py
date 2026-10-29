@@ -65,7 +65,9 @@ def shots(out: Path, only: str = "") -> int:
             e = ctx.request.post(f"{base}/api/staff/appointments/{focus}/encounter", headers={"X-PC": "1"})
             return str(e.json()["encounter_id"])
 
-        def invite(role: str, kind: str = "staff"):
+        def invite(role: str, kind: str = "staff", clinic: bool = False):
+            """O token de um convite novo. `clinic`: o da equipe do consultório (a pediatra que entra nele, a atendente,
+            a administração); sem ele, o de pediatra é o de um consultório criado vazio."""
             def make(ctx, base):
                 from puericorbs import config, invites
                 from puericorbs.db import connect_platform, connect_practice, one
@@ -77,6 +79,9 @@ def shots(out: Path, only: str = "") -> int:
                         return invites.create(pconn, kind="family", practice_id=1, guardian_id=g["id"])[0]
                     if kind != "staff":
                         return invites.create(pconn, kind=kind, created_by=2)[0]
+                    if clinic:
+                        cid = one(pconn, "SELECT clinic_id FROM practices WHERE id = 1")["clinic_id"]
+                        return invites.create(pconn, kind="staff", clinic_id=cid, role=role, label="Ana Lúcia Prado")[0]
                     return invites.create(pconn, kind="staff", practice_id=1, role=role)[0]
                 finally:
                     pconn.close()
@@ -164,6 +169,13 @@ def shots(out: Path, only: str = "") -> int:
         run("convite-escuro-390", "dramarina.localhost", "#/convite/", PHONE, theme="escuro", before=invite("clinician"))
         run("convite-recepcao-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("receptionist"))
         run("convite-invalido-390", "dramarina.localhost", "#/convite/inventado", PHONE, expect_404=True)
+        run("convite-pediatra-do-consultorio-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("clinician", clinic=True))
+        run("convite-administracao-do-consultorio-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("manager", clinic=True))
+        run("consultorio-bia-1280", "dramarina.localhost", "#/consultorio", DESK, "bia@demo.test")
+        run("consultorio-bia-390", "dramarina.localhost", "#/consultorio", PHONE, "bia@demo.test")
+        run("consultorio-convidar-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-team="invite"]'))
+        run("consultorio-paulo-1280", "drpauloreis.localhost", "#/consultorio", DESK, "paulo@demo.test")
+        run("recepcao-bia-390", "dramarina.localhost", "#/recepcao", PHONE, "bia@demo.test")
         run("convite-familia-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "family"))
         run("convite-colega-1280", "dramarina.localhost", "#/convite/", DESK, before=invite("", "practice"))
         run("convite-colega-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("", "practice"))

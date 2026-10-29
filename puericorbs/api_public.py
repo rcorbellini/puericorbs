@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import auth, files, practices, tenancy, views
+from . import auth, clinics, files, practices, tenancy, views
 from .context import ROLE_LABEL, Ctx, dep, need_user, staff_practices
 from .db import many, one
 
@@ -20,8 +20,9 @@ def practice_public(p: dict) -> dict:
 def me_payload(ctx: Ctx) -> dict | None:
     if not ctx.user:
         return None
+    label = ROLE_LABEL["manager"] if ctx.role == "receptionist" and ctx.manages else ROLE_LABEL.get(ctx.role or "", "")
     out = {"id": ctx.user["id"], "name": ctx.user["name"], "email": ctx.user["email"], "role": ctx.role,
-           "role_label": ROLE_LABEL.get(ctx.role or "", ""), "is_platform_admin": bool(ctx.user["is_platform_admin"])}
+           "role_label": label, "manages": ctx.manages, "is_platform_admin": bool(ctx.user["is_platform_admin"])}
     if ctx.role in ("clinician", "receptionist"):
         out["practices"] = [{"id": p["id"], "name": p["name"], "slug": p["slug"], "role": p["role"]}
                             for p in staff_practices(ctx)]
@@ -42,13 +43,20 @@ def set_cookie(response: Response, request: Request, name: str, value: str | Non
 
 
 def _demo_accounts(ctx: Ctx) -> list[dict]:
-    """Quem dá para "ser" na demonstração: a equipe e os responsáveis com conta nesta prática."""
+    """Quem dá para "ser" na demonstração: a pediatra desta prática, a equipe do consultório e os responsáveis com
+    conta nesta prática."""
     if not ctx.settings.demo or not ctx.site.practice:
         return []
     out = []
     for m in many(ctx.pconn, """SELECT u.id, u.name, u.email, m.role FROM memberships m JOIN users u ON u.id = m.user_id
                                 WHERE m.practice_id = ? ORDER BY m.role, u.name""", (ctx.practice_id,)):
         out.append({"email": m["email"], "name": m["name"], "role": m["role"], "label": ROLE_LABEL[m["role"]]})
+    # a equipe do consultório que não é pediatra (a pediatra que cuida do consultório aparece no site dela)
+    for m in many(ctx.pconn, """SELECT u.name, u.email, c.role FROM clinic_members c JOIN users u ON u.id = c.user_id
+                                WHERE c.clinic_id = ? AND u.id NOT IN (SELECT user_id FROM memberships WHERE role = 'clinician')
+                                ORDER BY c.role DESC, u.name""", (ctx.clinic_id,)):
+        if m["email"] not in {o["email"] for o in out}:
+            out.append({"email": m["email"], "name": m["name"], "role": "receptionist", "label": ROLE_LABEL[m["role"]]})
     seen = set()
     for g in many(ctx.conn, """SELECT g.user_id, g.name, g.relation, f.name AS family FROM guardians g
                                JOIN families f ON f.id = g.family_id WHERE g.user_id IS NOT NULL ORDER BY g.id"""):
@@ -75,6 +83,9 @@ def site(ctx: Ctx = Depends(dep)):
         out["domains"] = [d["host"] for d in many(ctx.pconn, "SELECT host FROM domains WHERE practice_id = ?", (p["id"],))]
         clinic = one(ctx.pconn, "SELECT name FROM clinics WHERE id = ?", (p["clinic_id"],)) if p["clinic_id"] else None
         out["clinic"] = clinic["name"] if clinic else None
+        # as outras pediatras do mesmo consultório (o site mostra quem mais atende ali)
+        out["colleagues"] = [{"id": c["id"], "name": c["name"], "title": c["title"]}
+                             for c in clinics.practices(ctx.pconn, p["clinic_id"]) if c["id"] != p["id"]]
         out["services"] = [views.service_public(ctx.conn, s, None, ctx.today) for s in many(
             ctx.conn, "SELECT * FROM services WHERE active = 1 ORDER BY position, id")]
         out["demo_accounts"] = _demo_accounts(ctx)
@@ -88,16 +99,21 @@ class Login(BaseModel):
 
 
 def _can_enter(ctx: Ctx, user_id: int) -> bool:
-    """A equipe e a família, no site do próprio consultório; a administração, em qualquer site nosso (o painel dela
-    fica em #/admin; a ficha, ela só vê entrando como alguém do consultório)."""
+    """A equipe e a família, em qualquer domínio do próprio consultório (cada um vai para a prática que é sua); a
+    administração da plataforma, em qualquer site nosso (o painel dela fica em #/admin; a ficha, ela só vê entrando
+    como alguém do consultório)."""
     user = one(ctx.pconn, "SELECT is_platform_admin FROM users WHERE id = ?", (user_id,))
     if user and user["is_platform_admin"] and ctx.site.kind in ("practice", "platform"):
         return True
-    if ctx.site.kind == "practice":
-        if one(ctx.pconn, "SELECT 1 AS ok FROM memberships WHERE user_id = ? AND practice_id = ?", (user_id, ctx.practice_id)):
-            return True
-        return bool(one(ctx.conn, "SELECT id FROM guardians WHERE user_id = ?", (user_id,)))
-    return False
+    if ctx.site.kind != "practice":
+        return False
+    if one(ctx.pconn, "SELECT 1 AS ok FROM memberships WHERE user_id = ? AND practice_id = ?", (user_id, ctx.practice_id)):
+        return True
+    if clinics.own_practice(ctx.pconn, ctx.clinic_id, user_id) or clinics.member(ctx.pconn, ctx.clinic_id, user_id):
+        return True
+    if one(ctx.conn, "SELECT id FROM guardians WHERE user_id = ?", (user_id,)):
+        return True
+    return bool(clinics.guardian_practice(ctx.pconn, ctx.settings.data_dir, ctx.clinic_id, user_id, skip=ctx.practice_id))
 
 
 def password_ok(ctx: Ctx, email: str, password: str, stored: str | None) -> bool:

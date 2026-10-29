@@ -15,8 +15,11 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 
 1. **Cada pediatra só vê os seus pacientes.** Cada prática tem o próprio banco (`data/practices/p<id>/practice.db`); o
    banco da plataforma não guarda dado de paciente. Na API, outra prática só se abre por `_practice()` (em
-   `api_staff.py`), que confere a filiação. Toda rota nova de paciente ganha um teste em `tests/test_isolation.py`.
-2. **A atendente nunca vê conteúdo clínico.** O servidor monta a resposta sem ele (`views.patient_brief(clinical=False)`,
+   `api_staff.py`), que confere a filiação (`staff_practices`). No consultório com várias pediatras, a atendente e a
+   administração do consultório atendem todas, sem nada clínico; a pediatra, mesmo a que administra, só a dela. Quem
+   entra por um domínio do consultório cai na prática que é sua (`context.py`), nunca na de outro consultório. Toda rota
+   nova de paciente ganha um teste em `tests/test_isolation.py`.
+2. **A atendente e a administração do consultório nunca veem conteúdo clínico.** O servidor monta a resposta sem ele (`views.patient_brief(clinical=False)`,
    `care.timeline(audience="reception")`); a tela nunca esconde o que chegou.
 3. **A família vê o que foi liberado para ela.** Todo arquivo e item do cuidado tem visibilidade (`internal`, `family`,
    `admin`), decidida no servidor. Criança de outra família responde 404, nunca 403.
@@ -26,7 +29,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 7. **O que deve acontecer com a criança sai de `care.timeline`.** A tela da família, a busca ativa e os painéis leem
    dali; lista paralela não existe.
 8. **Pedido que muda dado precisa do cabeçalho `X-PC: 1`** (a proteção contra CSRF do `server.py`).
-9. **Uma conta só se liga com a senha dela.** Toda conta nasce de um convite (`invites.py`); o cadastro não liga
+9. **Uma conta só se liga com a senha dela.** Toda conta nasce de um convite (`invites.py`): a plataforma convida a
+   pediatra que cria o consultório; a administração do consultório, a equipe; a pediatra e a recepção, as famílias. O cadastro não liga
    responsável a conta nenhuma, e o link da família só troca a senha de quem é só daquela família, naquele consultório.
 10. **A administração vê como quem usa, e fica registrado.** O painel (`api_admin.py`) só conta; a ficha, a agenda e o
    app da família ela vê entrando no consultório **vendo como** a pediatra, a atendente ou uma família, com a faixa no
@@ -70,10 +74,14 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
   no esquema e escreva a migração).
 - `tenancy.py`: o endereço → a prática (domínio cadastrado, subdomínio `<slug>.<base>`, plataforma); o `www.` volta
   para o domínio sem ele.
-- `invites.py`: os quatro convites (equipe, família, colega, administração), onde cada um abre e o registro da
-  plataforma. `api_invites.py`: abrir, aceitar e o que a pediatra e a recepção geram. `api_admin.py`: o painel e o "vendo como" (o link de entrada, `handoffs`).
-- `context.py`: o contexto de cada pedido (site, usuário, papel na prática e, com a administração vendo como alguém,
-  `actor`) e os guardas (`staff`, `clinician`, `family`).
+- `clinics.py`: o consultório (a clínica): as pediatras dele e a equipe que atende todas (`clinic_members`: a
+  atendente e a administração do consultório).
+- `invites.py`: os quatro convites (consultório próprio, equipe do consultório, família, administração), onde cada um
+  abre e o registro da plataforma. `api_invites.py`: abrir, aceitar, a equipe do consultório e o que a pediatra e a
+  recepção geram. `api_admin.py`: o painel e o "vendo como" (o link de entrada, `handoffs`).
+- `context.py`: o contexto de cada pedido (site, usuário, papel, a prática de quem entra por outro domínio do
+  consultório e, com a administração vendo como alguém, `actor`) e os guardas (`staff`, `clinician`, `manager`,
+  `family`).
 - `auth.py`: senha (scrypt) e sessão (token no cookie, hash no banco).
 - `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
 - `protocols.py`: puericultura, vacinas (PNI) e marcos. `care.py`: a linha do cuidado. `growth.py`: as curvas da OMS

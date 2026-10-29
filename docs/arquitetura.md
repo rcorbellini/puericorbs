@@ -6,20 +6,25 @@
 ## Quem é dono de quê
 
 ```
-Clínica (opcional) ─┬─ Unidades ── Salas
-                    ├─ Equipe: atendentes, gestor, enfermagem
-                    └─ Práticas ─┬─ Pediatra(s)
-                                 ├─ Serviços, planos, protocolos, modelos
-                                 ├─ Grade e agenda (por unidade)
-                                 ├─ Financeiro
-                                 └─ Vínculos ── Criança ── Família (responsáveis)
+Consultório (clínica) ─┬─ Unidades ── Salas
+                       ├─ Equipe: atendentes e administração do consultório (clinic_members)
+                       └─ Práticas, uma por pediatra ─┬─ Pediatra
+                                                      ├─ Serviços, planos, protocolos, modelos
+                                                      ├─ Grade e agenda (por unidade)
+                                                      ├─ Financeiro
+                                                      └─ Vínculos ── Criança ── Família (responsáveis)
 ```
 
 - **A prática é a unidade de isolamento.** Pacientes, prontuários, serviços, planos e dinheiro são dela. Um pediatra
   sozinho é uma prática. Dois pediatras na mesma clínica são duas práticas, e cada um só vê os seus, a não ser que
   escolham uma prática em grupo.
-- **A clínica é o lugar e a equipe que as práticas dividem:** unidades, salas, atendentes, gestor e o repasse. A
-  clínica não é dona de paciente nenhum.
+- **O consultório (a clínica) é o lugar e a equipe que as práticas dividem:** a atendente, que atende todas as
+  pediatras, e a administração do consultório, que faz o que a atendente faz e cuida da equipe e dos convites (depois,
+  unidades, salas e o repasse). O consultório não é dono de paciente nenhum. Toda prática tem um consultório; a
+  pediatra sozinha é um consultório de uma prática.
+- **Quem é do consultório entra por qualquer domínio dele** e cai na prática que é sua: a pediatra sem domínio próprio
+  trabalha pelo domínio de uma colega, e a família dela também (`context.py`). Nunca numa prática de outro
+  consultório.
 - **A família tem conta própria, fora das práticas.** O responsável entra uma vez e vê os filhos em todas as
   práticas que os atendem (ex.: mudou de pediatra).
 - **O vínculo (criança × prática) é o que dá acesso.** Sem vínculo, a prática não acha a criança, nem pelo CPF, e não
@@ -34,16 +39,20 @@ em mais de um lugar, com a família seguindo o médico, não a clínica.
 
 ## O que cada papel vê
 
-| | Pediatra | Atendente | Gestor da clínica | Responsável legal | Cuidador | Contador |
+| | Pediatra | Atendente | Administração do consultório | Responsável legal | Cuidador | Contador |
 |---|---|---|---|---|---|---|
-| Agenda | da prática | das práticas que atende | ocupação, sem nomes | dos filhos | dos filhos | — |
-| Cadastro e contato | sim | sim | — | o próprio | — | — |
-| Registro clínico (prontuário) | sim | **nunca** | **nunca** | não (cópia por pedido formal) | — | — |
-| Resumo, próximos passos, curvas, vacinas | sim | só o que é de agenda (consulta a marcar) | — | sim | orientações | — |
-| Exames e fotos clínicas | sim | **nunca** | — | sim | — | — |
-| Comprovantes, recibos, notas | sim | sim | — | sim | — | sim |
-| Financeiro da prática | sim | lança e recebe; o resultado, só se liberado | o repasse | o que pagou | — | leitura |
-| Serviços, planos, configuração | sim | leitura | — | — | — | — |
+| Agenda | a dela | de todas as pediatras do consultório | de todas as pediatras do consultório | dos filhos | dos filhos | — |
+| Cadastro e contato | os dela | sim | sim | o próprio | — | — |
+| Registro clínico (prontuário) | o dela | **nunca** | **nunca** | não (cópia por pedido formal) | — | — |
+| Resumo, próximos passos, curvas, vacinas | sim | só o que é de agenda (consulta a marcar) | só o que é de agenda | sim | orientações | — |
+| Exames e fotos clínicas | sim | **nunca** | **nunca** | sim | — | — |
+| Comprovantes, recibos, notas | sim | sim | sim | sim | — | sim |
+| Financeiro da prática | o dela | lança e recebe; o resultado, só se liberado | lança e recebe | o que pagou | — | leitura |
+| Serviços, planos, configuração | os dela | leitura | leitura | — | — | — |
+| Equipe e convites do consultório | se for da administração | — | sim | — | — | — |
+
+A pediatra que cuida do consultório (quem o criou já nasce na administração) segue com a coluna da pediatra: só os
+pacientes dela. A agenda e o cadastro de todas ficam com a atendente e com a administração que não é pediatra.
 
 ## Visibilidade de cada registro
 
@@ -82,11 +91,13 @@ manda nada sozinho.
 
 | Convite | Quem gera | Onde abre | O que faz |
 |---|---|---|---|
-| Pediatra (equipe) | a administração, para um consultório que ainda não tem pediatra | o domínio do consultório | cria a conta; ela diz o nome do site e o CRM |
-| Atendente (equipe) | a pediatra, em **Consultório** | o domínio do consultório | cria a conta da atendente; a pediatra pode tirar o acesso depois |
-| Família | a pediatra ou a recepção, na ficha (**Acesso da família**) | o domínio do consultório | o responsável cria a senha do app (ou uma nova, se esqueceu) |
-| Colega | a pediatra, em **Consultório**; a administração, no painel | qualquer site nosso | o colega cria a conta e o **próprio** consultório, que nasce sem domínio até a plataforma ligar um |
-| Administração | a administração, no painel; a linha de comando | qualquer site nosso | uma conta da plataforma (senha de 12 ou mais) |
+| Consultório próprio | a plataforma, no painel | qualquer site nosso | a pediatra cria a conta e o consultório dela, já na administração dele; o domínio a plataforma liga depois |
+| Pediatra do consultório | a administração do consultório, em **Consultório** | qualquer domínio do consultório | a pediatra entra com a prática dela (os pacientes só dela); sem domínio próprio, trabalha pelo do consultório |
+| Atendente | a administração do consultório | qualquer domínio do consultório | a atendente de todas as pediatras; a administração tira o acesso depois |
+| Administração do consultório | a administração do consultório | qualquer domínio do consultório | mais alguém que cuida da equipe e da recepção, sem nada clínico |
+| Pediatra de um consultório vazio | a plataforma, no painel | o domínio do consultório | a pediatra do consultório que a plataforma criou vazio; ela diz o nome do site e o CRM |
+| Família | a pediatra ou a recepção, na ficha (**Acesso da família**) | qualquer domínio do consultório | o responsável cria a senha do app (ou uma nova, se esqueceu) |
+| Administração da plataforma | a plataforma, no painel; a linha de comando | qualquer site nosso | uma conta da plataforma (senha de 12 ou mais) |
 
 As regras que fecham o caminho para tomar a conta de alguém:
 
@@ -94,7 +105,10 @@ As regras que fecham o caminho para tomar a conta de alguém:
   nenhuma (o e-mail digitado não prova nada); quem liga é a própria pessoa, ao aceitar o convite.
 - **O link da família só troca a senha de quem é só daquela família, naquele consultório.** A conta da equipe, da
   administração ou de quem também é responsável em outro consultório pede a senha que já tem.
-- **A plataforma não põe ninguém dentro de um consultório que já tem pediatra:** a equipe é a pediatra quem convida.
+- **A plataforma não põe ninguém dentro de um consultório que já tem pediatra:** a equipe é a administração do
+  consultório quem convida.
+- **O consultório nunca fica sem administração:** a última pessoa da administração não sai por **Tirar o acesso**. A
+  pediatra também não sai por ali: os pacientes são dela, e a saída passa pela plataforma.
 - **Senha errada demais espera:** 10 por endereço ou 20 por conta em 15 minutos (`auth.throttled`).
 
 ## O painel da administração

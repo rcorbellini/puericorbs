@@ -62,7 +62,7 @@ function practiceCard(p) {
   return html`<article class="glass pcard">
     <div style="display:flex;align-items:center;gap:12px">
       <span class="av lg">${initials(p.name)}</span>
-      <div class="grow" style="min-width:0"><h3 class="t-h3">${p.name}</h3><p class="t-small muted">${p.title}${p.registry ? ` · ${p.registry}` : ''} · desde ${dateBR(p.created_at)}</p></div>
+      <div class="grow" style="min-width:0"><h3 class="t-h3">${p.name}</h3><p class="t-small muted">${p.clinic && p.clinic !== p.name ? `${p.clinic} · ` : ''}${p.title}${p.registry ? ` · ${p.registry}` : ''} · desde ${dateBR(p.created_at)}</p></div>
       <span class="swatch" style="--sw:${ACCENT_HEX[p.accent] || ACCENT_HEX.agua}" title="Cor do destaque"></span>
     </div>
     <div class="domains">
@@ -86,7 +86,8 @@ function practiceCard(p) {
 
 function inviteRow(i) {
   const [label, cls] = STATUS[i.status] || [i.status, ''];
-  const what = i.kind === 'staff' ? `Pediatra de ${i.practice}` : i.kind_label;
+  // a equipe: o papel e onde (a pediatra de um consultório criado vazio, ou alguém da equipe de um consultório)
+  const what = i.kind !== 'staff' ? i.kind_label : i.practice && i.role === 'clinician' ? `Pediatra de ${i.practice}` : `${i.role_label} · ${i.clinic}`;
   const meta = [i.label, i.new_practice ? `criou ${i.new_practice}` : null, i.created_by ? `por ${i.created_by}` : null,
     i.status === 'pendente' ? `vence ${dateBR(i.expires_at)}` : i.used_at ? `${dateBR(i.used_at)}${i.used_by ? ` · ${i.used_by}` : ''}` : `de ${dateBR(i.created_at)}`];
   return html`<div class="li">

@@ -31,8 +31,8 @@ def main() -> None:
     dom.add_argument("slug")
     inv = sub.add_parser("invite", help="gera um link de primeiro acesso (a equipe de um consultório ou a administração)")
     inv.add_argument("slug", nargs="?", help="o consultório (sem ele, só com --admin)")
-    inv.add_argument("--role", choices=("clinician", "receptionist"), default="clinician",
-                     help="clinician (a pediatra) ou receptionist (a atendente)")
+    inv.add_argument("--role", choices=("clinician", "receptionist", "manager"), default="clinician",
+                     help="clinician (a pediatra), receptionist (a atendente) ou manager (a administração do consultório)")
     inv.add_argument("--admin", action="store_true", help="o convite da administração da plataforma")
     inv.add_argument("--days", type=int, default=7, help="por quantos dias o link vale")
     args = parser.parse_args()
@@ -90,8 +90,8 @@ def main() -> None:
         from . import invites
         token, _ = invites.create(pconn, kind="staff", practice_id=practice["id"], role=args.role, days=args.days)
         invites.log(pconn, "convite_gerado", practice_id=practice["id"],
-                    detail=f"{'pediatra' if args.role == 'clinician' else 'atendente'}, pela linha de comando")
-        who = "a pediatra" if args.role == "clinician" else "a atendente"
+                    detail=f"{invites.ROLE_LABEL[args.role].lower()}, pela linha de comando")
+        who = {"clinician": "a pediatra", "receptionist": "a atendente", "manager": "a administração do consultório"}[args.role]
         print(f"Convite para {who} de {practice['name']} (vale {args.days} dias e uma vez só):")
         print(invites.link(pconn, practice, token, settings.base_domains, settings.port))
 

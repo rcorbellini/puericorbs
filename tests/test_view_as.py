@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-from conftest import H, client
+from conftest import H, client, outro_consultorio
 from fastapi.testclient import TestClient
 
 from puericorbs import auth, config
@@ -110,13 +110,14 @@ def test_o_registro_do_consultorio_guarda_quem_estava_de_fato(fresh):
 
 
 def test_o_link_de_entrada_vale_uma_vez_so_no_consultorio_e_por_pouco_tempo(fresh):
+    outro_consultorio(fresh)
     panel = client(fresh, "localhost", ADMIN)
     body = {"practice_id": 1, "user_id": uid(fresh, "marina@demo.test")}
     url = urlsplit(panel.post("/api/admin/view-as", json=body, headers=H).json()["url"])
     assert url.netloc == "dramarina.localhost"
-    paulo = browser(fresh, "drpauloreis.localhost")
-    assert paulo.get(url.path, follow_redirects=False).headers["location"] == VENCIDA
-    assert "pc_session" not in paulo.cookies
+    fora = browser(fresh, "draoutra.localhost")
+    assert fora.get(url.path, follow_redirects=False).headers["location"] == VENCIDA
+    assert "pc_session" not in fora.cookies
     assert browser(fresh, "dramarina.localhost").get(url.path, follow_redirects=False).headers["location"] == "/"
     outro = browser(fresh, "dramarina.localhost")
     assert outro.get(url.path, follow_redirects=False).headers["location"] == VENCIDA
@@ -146,13 +147,17 @@ def test_so_a_administracao_entra_como_alguem(fresh):
 
 
 def test_vendo_como_so_vale_no_consultorio_em_que_entrou(fresh):
-    """A sessão levada a outro domínio não vê ninguém lá: nem a pediatra, nem a família de mesmo número (cada
-    consultório numera os responsáveis no próprio banco)."""
+    """A sessão levada ao domínio de outro consultório não vê ninguém lá: nem a pediatra, nem a família de mesmo número
+    (cada prática numera os responsáveis no próprio banco)."""
+    fora = outro_consultorio(fresh)
     g = one(connect_practice(fresh.data_dir, 1), "SELECT id FROM guardians ORDER BY id LIMIT 1")
-    assert one(connect_practice(fresh.data_dir, 2), "SELECT id FROM guardians WHERE id = ?", (g["id"],))
+    conn = connect_practice(fresh.data_dir, fora)
+    conn.execute("INSERT INTO families (name, created_at) VALUES ('Família de fora', '2026-10-28T10:00:00')")
+    conn.execute("INSERT INTO guardians (id, family_id, name, created_at) VALUES (?, 1, 'Alguém de fora', '2026-10-28T10:00:00')",
+                 (g["id"],))
     for who in ({"user_id": uid(fresh, "marina@demo.test")}, {"guardian_id": g["id"]}):
         c = entra_como(fresh, 1, **who)
-        other = TestClient(create_app(fresh), base_url="http://drpauloreis.localhost",
+        other = TestClient(create_app(fresh), base_url="http://draoutra.localhost",
                            cookies={"pc_session": c.cookies.get("pc_session")})
         me = other.get("/api/me").json()["me"]
         assert me["is_platform_admin"] and me["role"] is None and "acting" not in me, who
@@ -184,14 +189,17 @@ def test_quem_sai_da_equipe_deixa_de_ser_visto(fresh):
 def test_do_dominio_de_um_consultorio_a_entrada_vai_pelo_dominio_do_outro(fresh):
     """Na produção, o painel está num domínio de pediatra: a entrada em outro consultório vai pelo domínio dele, e o
     consultório sem domínio não tem onde entrar."""
+    fora = outro_consultorio(fresh, domain="draoutra.com.br")
     panel = client(fresh, "dramarina.com.br", ADMIN)
-    r = panel.post("/api/admin/view-as", json={"practice_id": 2, "user_id": uid(fresh, "paulo@demo.test")}, headers=H)
-    assert r.json()["url"].startswith("https://drpauloreis.com.br/api/admin/entrar/")
-    same = panel.post("/api/admin/view-as", json={"practice_id": 1, "user_id": uid(fresh, "marina@demo.test")}, headers=H)
-    assert same.json()["url"].startswith("/api/admin/entrar/")
+    r = panel.post("/api/admin/view-as", json={"practice_id": fora, "user_id": uid(fresh, "outra@demo.test")}, headers=H)
+    assert r.json()["url"].startswith("https://draoutra.com.br/api/admin/entrar/")
+    # o Paulo é do mesmo consultório: a entrada vale por este mesmo endereço
+    for pid, email in ((1, "marina@demo.test"), (2, "paulo@demo.test")):
+        same = panel.post("/api/admin/view-as", json={"practice_id": pid, "user_id": uid(fresh, email)}, headers=H)
+        assert same.json()["url"].startswith("/api/admin/entrar/"), email
     pid = panel.post("/api/admin/practices", json={"name": "Dra. Sem Domínio"}, headers=H).json()["id"]
     painel = {p["id"]: p for p in panel.get("/api/admin/overview").json()["practices"]}
-    assert painel[1]["can_enter"] and painel[2]["can_enter"] and not painel[pid]["can_enter"]
+    assert painel[1]["can_enter"] and painel[2]["can_enter"] and painel[fora]["can_enter"] and not painel[pid]["can_enter"]
     conn = connect_practice(fresh.data_dir, pid)
     conn.execute("INSERT INTO families (name, created_at) VALUES ('Teste', '2026-10-28T10:00:00')")
     conn.execute("INSERT INTO guardians (family_id, name, created_at) VALUES (1, 'Responsável', '2026-10-28T10:00:00')")
@@ -218,6 +226,7 @@ def test_migracao_mantem_a_sessao_e_o_registro(tmp_path):
     for col in ("as_practice_id", "as_user_id", "as_guardian_id"):
         pconn.execute(f"ALTER TABLE sessions DROP COLUMN {col}")
     pconn.execute("DROP TABLE handoffs")
+    pconn.execute("DROP TABLE clinic_members")  # o que a versão 5 trouxe (test_consultorio.py)
     pconn.execute("PRAGMA user_version = 3")
     pconn.close()
     pconn = connect_platform(s.data_dir)

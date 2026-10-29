@@ -10,12 +10,16 @@ endereço decide de qual consultório é o site. Cada pediatra só vê os seus p
 > **Estado: v0.1 em validação (28/10/2026).** "Puericorbs" é nome provisório. A produção já tem o consultório da
 > primeira pediatra (karitanaves.com.br), vazio, esperando o convite ser aceito.
 
-## Os três perfis
+## Os perfis
+
+Um consultório pode ter uma ou várias pediatras, e cada uma só vê os seus pacientes. A equipe do consultório atende
+todas.
 
 | Perfil | Quem é | O que faz no Puericorbs |
 |---|---|---|
 | **Pediatra** | o médico; a carteira de pacientes é dele | atende, registra, acompanha, configura serviços e planos, vê o próprio dinheiro |
-| **Atendente** | a secretária do consultório ou a recepção da clínica | agenda, confirma, recebe, cobra, cuida das notas; nunca vê conteúdo clínico |
+| **Atendente** | a secretária ou a recepção do consultório | agenda, confirma, recebe, cobra e cuida das notas de todas as pediatras; nunca vê conteúdo clínico |
+| **Administração do consultório** | quem cuida do consultório (quem o criou já é) | o que a atendente faz, mais a equipe e os convites; nunca vê conteúdo clínico |
 | **Família** | os responsáveis (o cliente) e a criança (o paciente) | agenda, acompanha o cuidado, envia exames e fotos, recebe receitas e notas |
 
 ## Rodar
@@ -72,9 +76,10 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
   os arquivos, com o envio de exames e fotos para a pediatra revisar. Instalado no celular, o app leva o nome do
   consultório, e o link mandado pelo WhatsApp mostra o nome, a especialidade e o CRM da pediatra.
 
-- **Convites:** toda conta nasce de um link de uso único. A pediatra convida a atendente e um colega (que ganha o
-  próprio consultório) em **Consultório**, onde também ajusta o site; ela e a recepção mandam o acesso da família pela
-  ficha (**Acesso da família**, já com o WhatsApp). Uma conta que já existe só se liga com a senha dela.
+- **Convites:** toda conta nasce de um link de uso único. A plataforma convida a pediatra que cria o consultório; a
+  administração do consultório convida, em **Consultório**, outras pediatras (cada uma com os pacientes dela), a
+  atendente e mais alguém da administração; a pediatra e a recepção mandam o acesso da família pela ficha (**Acesso da
+  família**, já com o WhatsApp). Uma conta que já existe só se liga com a senha dela.
 - **Administração:** o painel em `#/admin`, de qualquer site nosso, mostra os consultórios em números, a equipe de cada
   um, os convites e o que aconteceu; liga domínios, gera os convites da plataforma e entra em qualquer consultório
   **vendo como** a pediatra, a atendente ou uma família, com uma faixa no topo (tudo fica no registro do consultório).

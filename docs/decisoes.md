@@ -4,6 +4,26 @@
 
 ## Tomadas
 
+### 29/10/2026 — o consultório com várias pediatras
+
+35. **O consultório pode ter várias pediatras, e cada uma só vê os pacientes dela.** Pedido do dono: "um consultório
+    compartilhado por duas pediatras: cada uma vê os seus pacientes, mas a mesma atendente trabalha para as duas". No
+    código, o consultório é a clínica (`clinics`), e cada pediatra é uma prática, com o banco dela. Substitui a 26:
+    o colega que a pediatra convida entra no consultório dela, com os pacientes só dele. Consultório separado nasce só
+    pelo convite da plataforma.
+36. **A atendente é do consultório:** atende todas as pediatras dele, na agenda, no cadastro e no dinheiro, sem nada
+    clínico (`clinic_members`). Antes ela era membro de cada prática.
+37. **A administração do consultório** (`clinic_members.role = 'manager'`). Pedido do dono: "semelhante ao meu geral,
+    porém com escopo do consultório". Ela faz o que a atendente faz, em todas as pediatras, e cuida da equipe e dos
+    convites. Não vê prontuário: é o "gestor da clínica" de `arquitetura.md`. Quem cria o consultório já nasce nela. A
+    pediatra que administra continua vendo só os próprios pacientes; a recepção de todas fica com a atendente e com a
+    administração que não é pediatra.
+38. **Tudo começa por convite.** Pedido do dono: a plataforma convida a pediatra que cria o consultório; a administração
+    do consultório convida pediatras, atendentes e outra administração; a pediatra e a recepção convidam as famílias.
+39. **Quem é do consultório entra por qualquer domínio dele e cai na sua prática.** Vale para a pediatra sem domínio
+    próprio e para a família dela (`context.py`). Nunca cai numa prática de outro consultório, nem numa em que a pessoa
+    não tem papel. O consultório criado sem domínio continua sem onde entrar até a plataforma ligar um.
+
 ### 28/10/2026 — os horários da pediatra e a confirmação pelo WhatsApp
 
 32. **A pediatra define os dias e os horários em que atende, e só ela** (Horários, `#/horarios`). Pedido do dono: "a

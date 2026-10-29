@@ -16,7 +16,9 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
   modelos, medidas e curvas da OMS, linha do cuidado (puericultura, vacinas, marcos), app da família, arquivos com caixa
   de revisão, plano com cota, recebimentos e o financeiro do mês, e o acesso da família pelo link (que também serve
   para a família criar outra senha). Também: os horários da pediatra e a agenda fechada, o pedido de confirmação pelo
-  WhatsApp (o primeiro passo do M2) e o nome do consultório no app instalado e na prévia do link. **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
+  WhatsApp (o primeiro passo do M2) e o nome do consultório no app instalado e na prévia do link.
+- **Do M3, adiantado (29/10):** o consultório com várias pediatras, cada uma com os pacientes dela, a atendente de
+  todas e a administração do consultório, com a equipe entrando por convite. **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
   lembretes (push e e-mail).
 
 ## Conversar com pediatras
@@ -67,8 +69,8 @@ arquivo para o contador.
 
 ### M3 — A clínica e o SaaS aberto
 
-Várias práticas numa clínica, atendente compartilhada, salas, repasse, gestor, cobertura entre pediatras, pediatra em
-várias clínicas, página pública, cadastro sozinho com teste grátis, assinatura do Puericorbs.
+~~Várias práticas numa clínica, atendente compartilhada, gestor~~ (feitos em 29/10), salas, repasse, cobertura entre
+pediatras, pediatra em várias clínicas, página pública, cadastro sozinho com teste grátis, assinatura do Puericorbs.
 
 **Pronto quando:** uma clínica com dois pediatras roda um mês com o repasse automático, e um pediatra novo se
 cadastra e atende sem a nossa ajuda.

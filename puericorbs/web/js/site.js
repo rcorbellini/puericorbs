@@ -109,11 +109,12 @@ export function publicSite(app) {
       <header style="display:flex;align-items:center;gap:12px"><span class="logo"></span><span class="t-small muted">${s.domains?.[0] || s.host}</span></header>
       <section class="site-hero">
         <div class="intro">
-          <span class="t-cap">${p.title}${s.clinic ? ` · ${s.clinic}` : ''}</span>
+          <span class="t-cap">${p.title}${s.clinic && s.clinic !== p.name ? ` · ${s.clinic}` : ''}</span>
           <h1 class="site-name">${p.name}</h1>
           ${p.registry ? html`<p class="muted">${p.registry}</p>` : ''}
           ${p.bio ? html`<p class="t-h2 pretty" style="font-weight:500;max-width:46ch">${p.bio}</p>` : ''}
           ${p.address ? html`<p class="muted" style="display:flex;gap:8px;align-items:center">${icon('pin')}${p.address}</p>` : ''}
+          ${s.colleagues?.length ? html`<p class="muted" style="display:flex;gap:8px;align-items:center">${icon('users')}Também ${s.colleagues.length > 1 ? 'atendem' : 'atende'} aqui: ${s.colleagues.map((c) => c.name).join(', ')}</p>` : ''}
         </div>
         <div class="enter glass card" style="display:flex;flex-direction:column;gap:14px">
           <h2 class="t-h2">${admin ? 'Administração' : 'Entrar'}</h2>
@@ -164,8 +165,8 @@ export function publicSite(app) {
   }));
 }
 
-// O convite: um link de uso único. Quatro tipos (invites.py): a equipe e a família, no domínio do consultório; o colega
-// que vai ter o consultório dele e a administração, com a marca da plataforma.
+// O convite: um link de uso único. Quatro tipos (invites.py): a equipe e a família, num domínio do consultório; a
+// pediatra que cria o próprio consultório e a administração, com a marca da plataforma.
 export async function invite(app) {
   const s = app.site;
   const root = document.getElementById('app');
@@ -194,15 +195,28 @@ export async function invite(app) {
   let cap; let title; let lead; let more = ''; let fields; let button = 'Criar meu acesso';
   if (inv.kind === 'staff') {
     const doc = inv.role === 'clinician';
+    const own = doc && inv.practice;  // o consultório que a plataforma criou vazio: a pediatra é a dona dele
+    const clinic = inv.clinic || 'Um consultório';
+    const doctors = (inv.doctors || []).join(', ');
     cap = `Convite · ${inv.role_label}`;
-    title = 'Crie o seu acesso';
-    lead = doc
-      ? html`Este é o site do seu consultório, em <b>${domain}</b>. Crie a sua senha e diga como o consultório aparece para as famílias.`
-      : html`Você vai cuidar da agenda, do cadastro e do dinheiro de <b>${inv.practice.name}</b>. Crie a sua senha para entrar.`;
-    if (doc) more = 'O resto (o texto de apresentação, o endereço, o telefone, a cor, os serviços e a grade) se ajusta depois, lá dentro, em Consultório e Serviços.';
+    title = inv.label ? `Olá, ${inv.label.split(' ')[0]}` : 'Crie o seu acesso';
+    if (own) {
+      lead = html`Este é o site do seu consultório, em <b>${domain}</b>. Crie a sua senha e diga como o consultório aparece para as famílias.`;
+      more = 'O resto (o texto de apresentação, o endereço, o telefone, a cor, os serviços e a grade) se ajusta depois, lá dentro, em Consultório e Serviços.';
+    } else if (doc) {
+      lead = html`<b>${clinic}</b> convidou você para atender com a sua agenda e os seus pacientes: só você vê os seus.`;
+      more = doctors ? `Também atendem lá: ${doctors}. A recepção do consultório marca para todas as pediatras, sem ver o prontuário.` : '';
+    } else if (inv.role === 'manager') {
+      lead = html`<b>${clinic}</b> convidou você para cuidar da equipe, dos convites e da recepção de todas as pediatras.`;
+      more = 'O prontuário é de cada pediatra: a administração do consultório não vê conteúdo clínico.';
+    } else {
+      lead = doctors ? html`Você vai cuidar da agenda, do cadastro e do dinheiro de <b>${doctors}</b>.`
+        : html`<b>${clinic}</b> convidou você para cuidar da agenda, do cadastro e do dinheiro.`;
+      more = 'O prontuário é de cada pediatra: a recepção não vê conteúdo clínico.';
+    }
     fields = html`<div class="rows">${nameRow}${doc ? html`
-        ${row('Nome no site', html`<input class="inline" name="practice_name" value="${inv.practice.name}" required>`, 'o título do site')}
-        ${row('CRM e RQE', html`<input class="inline" name="registry" value="${inv.practice.registry || ''}" placeholder="CRM-UF 000000">`)}` : ''}</div>
+        ${row('Nome no site', html`<input class="inline" name="practice_name" value="${own ? inv.practice.name : ''}" placeholder="Dra. Nome Sobrenome" required>`, 'como as famílias veem você')}
+        ${row('CRM e RQE', html`<input class="inline" name="registry" value="${own ? inv.practice.registry || '' : ''}" placeholder="CRM-UF 000000">`)}` : ''}</div>
       <div class="rows">${emailRow()}${passRow()}</div>`;
   } else if (inv.kind === 'family') {
     const g = inv.guardian;
@@ -225,9 +239,10 @@ export async function invite(app) {
     cap = 'Convite · Consultório próprio';
     title = 'O seu consultório no Puericorbs';
     lead = html`${inv.inviter ? html`<b>${inv.inviter}</b> chamou você` : 'Um convite'} para ter o seu próprio consultório: a agenda, o acompanhamento das crianças, os planos e o app das famílias, num site com o seu domínio.`;
-    more = 'Os seus pacientes são só seus: nem quem convidou nem outro consultório vê nada deles.';
+    more = 'Lá dentro, você convida a recepção, a administração e outras pediatras. Os seus pacientes são só seus: nem quem convidou nem outra pediatra vê nada deles.';
     fields = html`<div class="rows">${nameRow}
         ${row('Nome no site', html`<input class="inline" name="practice_name" placeholder="Dra. Nome Sobrenome" required>`, 'o título do site')}
+        ${row('Nome do consultório', html`<input class="inline" name="clinic_name" placeholder="se for outro">`, 'se dividir com outras pediatras')}
         ${row('CRM e RQE', html`<input class="inline" name="registry" placeholder="CRM-UF 000000">`)}
         ${row('Seu domínio', html`<input class="inline" name="domain" placeholder="drnome.com.br" autocapitalize="off" spellcheck="false">`, 'se já tiver')}</div>
       <div class="rows">${emailRow()}${passRow()}</div>`;

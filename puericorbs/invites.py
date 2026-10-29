@@ -1,49 +1,71 @@
-"""O convite: um link de uso único para alguém entrar no Puericorbs com a própria senha.
+"""O convite: um link de uso único para alguém entrar no Puericorbs com a própria senha. Todo começo é um convite.
 
 Quatro tipos:
 
-- `staff`: a equipe de um consultório (a pediatra, criada pela plataforma; a atendente, pela pediatra);
-- `family`: um responsável já cadastrado na ficha, que cria a senha do app da família (pela pediatra ou pela recepção);
-- `practice`: um colega pediatra, que ganha o próprio consultório, separado do de quem convidou;
+- `practice`: a pediatra que cria o próprio consultório (só a plataforma gera); ela nasce na administração dele;
+- `staff`: a equipe de um consultório (`clinic_id`), pela administração dele: uma pediatra que entra com os pacientes
+  dela (`clinician`), a atendente de todas as pediatras (`receptionist`) ou mais alguém da administração (`manager`). O
+  convite de pediatra com `practice_id` é o da plataforma para um consultório criado vazio;
+- `family`: um responsável, pela pediatra ou pela recepção. Ou de quem já está na ficha (`guardian_id`), que só cria
+  a senha, ou de uma família nova (`prefill`): quem convida escreve o que sabe, e a família completa o resto;
 - `admin`: alguém da administração da plataforma.
 
-O de equipe e o de família só abrem no domínio do próprio consultório. O de colega e o de administração abrem em
-qualquer endereço do Puericorbs (ainda não há domínio da plataforma). Ninguém escolhe a senha de ninguém, e o banco
-guarda só o hash do token, como nas sessões.
+O de equipe e o de família abrem em qualquer domínio do consultório deles; o de consultório próprio e o de
+administração, em qualquer endereço do Puericorbs (ainda não há domínio da plataforma). Ninguém escolhe a senha de
+ninguém, e o banco guarda só o hash do token, como nas sessões.
 """
 
 from __future__ import annotations
 
+import json
 import secrets
 import sqlite3
 from datetime import datetime, timedelta
 
 from .auth import token_hash
+from . import clinics
 from .db import insert, many, now_iso, one
 
 KINDS = ("staff", "family", "practice", "admin")
-ROLES = ("clinician", "receptionist")
+ROLES = ("clinician", "receptionist", "manager")
 LABEL = {"staff": "Equipe", "family": "Família", "practice": "Consultório próprio", "admin": "Administração"}
+ROLE_LABEL = {"clinician": "Pediatra", "receptionist": "Atendente", "manager": "Administração do consultório"}
 
 
 def create(pconn: sqlite3.Connection, *, kind: str = "staff", practice_id: int | None = None, role: str | None = None,
            guardian_id: int | None = None, label: str | None = None, created_by: int | None = None,
-           days: int = 7) -> tuple[str, int]:
+           days: int = 7, clinic_id: int | None = None, prefill: dict | None = None) -> tuple[str, int]:
     """O token (que só aparece agora, no link) e o id do convite."""
     if kind not in KINDS:
         raise ValueError(f"tipo de convite desconhecido: {kind}")
     if kind == "staff" and role not in ROLES:
         raise ValueError(f"papel desconhecido: {role}")
-    if kind in ("staff", "family") and not practice_id:
-        raise ValueError("o convite de equipe e o de família são de um consultório")
+    if kind == "family" and not practice_id:
+        raise ValueError("o convite da família é de uma pediatra")
+    if kind == "staff" and not (practice_id or clinic_id):
+        raise ValueError("o convite de equipe é de um consultório")
+    if kind == "staff" and not clinic_id:
+        clinic_id = one(pconn, "SELECT clinic_id FROM practices WHERE id = ?", (practice_id,))["clinic_id"]
     token = secrets.token_urlsafe(24)
     now = datetime.now().replace(microsecond=0)
     invite_id = insert(pconn, "invites", {
         "token_hash": token_hash(token), "kind": kind, "practice_id": practice_id,
         "role": role if kind == "staff" else None, "guardian_id": guardian_id if kind == "family" else None,
         "label": (label or "").strip()[:80] or None, "created_by": created_by,
-        "created_at": now.isoformat(), "expires_at": (now + timedelta(days=days)).isoformat()})
+        "created_at": now.isoformat(), "expires_at": (now + timedelta(days=days)).isoformat(),
+        "clinic_id": clinic_id if kind == "staff" else None,
+        "prefill": json.dumps(prefill, ensure_ascii=False) if kind == "family" and prefill else None})
     return token, invite_id
+
+
+def clinic_of(pconn: sqlite3.Connection, row: dict) -> int | None:
+    """O consultório do convite: o dele, ou o da pediatra (o da família e o de um consultório criado vazio)."""
+    if row["clinic_id"]:
+        return row["clinic_id"]
+    if row["practice_id"]:
+        p = one(pconn, "SELECT clinic_id FROM practices WHERE id = ?", (row["practice_id"],))
+        return p["clinic_id"] if p else None
+    return None
 
 
 def valid(row: dict | None) -> bool:
@@ -56,10 +78,11 @@ def find(pconn: sqlite3.Connection, token: str) -> dict | None:
     return row if valid(row) else None
 
 
-def opens_here(row: dict, site) -> bool:
-    """Equipe e família: só no domínio do consultório do convite. Colega e administração: em qualquer site nosso."""
+def opens_here(pconn: sqlite3.Connection, row: dict, site) -> bool:
+    """Equipe e família: em qualquer domínio do consultório do convite. Consultório próprio e administração: em
+    qualquer site nosso."""
     if row["kind"] in ("staff", "family"):
-        return site.kind == "practice" and site.practice["id"] == row["practice_id"]
+        return site.kind == "practice" and site.practice["clinic_id"] == clinic_of(pconn, row)
     return site.kind in ("practice", "platform")
 
 
@@ -86,9 +109,9 @@ def status(row: dict) -> str:
 
 def view(row: dict) -> dict:
     return {"id": row["id"], "kind": row["kind"], "kind_label": LABEL[row["kind"]], "role": row["role"],
-            "label": row["label"], "created_at": row["created_at"], "expires_at": row["expires_at"],
-            "used_at": row["used_at"], "status": status(row), "practice_id": row["practice_id"],
-            "new_practice_id": row["new_practice_id"]}
+            "role_label": ROLE_LABEL.get(row["role"] or ""), "label": row["label"], "created_at": row["created_at"],
+            "expires_at": row["expires_at"], "used_at": row["used_at"], "status": status(row),
+            "practice_id": row["practice_id"], "new_practice_id": row["new_practice_id"], "clinic_id": row["clinic_id"]}
 
 
 def page_link(host: str, scheme: str, token: str) -> str:
@@ -97,10 +120,12 @@ def page_link(host: str, scheme: str, token: str) -> str:
 
 
 def link(pconn: sqlite3.Connection, practice: dict | None, token: str, base_domains: tuple[str, ...], port: int) -> str:
-    """O link fora de um pedido (a linha de comando): o domínio do consultório; sem ele, o subdomínio da plataforma; no
-    computador, o local. O convite de colega e o de administração usam o primeiro domínio cadastrado."""
+    """O link fora de um pedido (a linha de comando, a recepção de outra pediatra): o domínio da pediatra; sem ele, o
+    de outra pediatra do mesmo consultório; depois, o subdomínio da plataforma; no computador, o local. O convite de
+    consultório próprio e o de administração usam o primeiro domínio cadastrado."""
     if practice:
         rows = many(pconn, "SELECT host FROM domains WHERE practice_id = ? ORDER BY created_at, host", (practice["id"],))
+        rows = rows or [{"host": h} for h in clinics.domains(pconn, practice["clinic_id"])]
     else:
         rows = many(pconn, "SELECT host FROM domains ORDER BY created_at, host LIMIT 1")
     if rows:

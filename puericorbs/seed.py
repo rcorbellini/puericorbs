@@ -12,7 +12,7 @@ import json
 import shutil
 from datetime import date, datetime, timedelta
 
-from . import auth, catalog, files, growth, protocols
+from . import auth, catalog, clinics, files, growth, protocols
 from .config import Settings
 from .db import connect_platform, connect_practice, insert, many, now_iso, one, platform_path, transaction
 from .finance import MONTHS_FULL
@@ -333,10 +333,15 @@ def run(settings: Settings, reset: bool = False) -> None:
                                address="Clínica Girassol, sala 3", clinician_name="Dr. Paulo Reis",
                                clinician_email="paulo@demo.test", password=PASSWORD)
     with transaction(pconn):
+        # a equipe do consultório: a Carla atende as duas pediatras; a Bia e a Dra. Marina cuidam do consultório
         carla = insert(pconn, "users", {"email": "carla@demo.test", "name": "Carla Souza",
                                         "password_hash": auth.hash_password(PASSWORD), "created_at": now_iso()})
-        for pid in (marina_id, paulo_id):
-            insert(pconn, "memberships", {"user_id": carla, "practice_id": pid, "role": "receptionist"})
+        bia = insert(pconn, "users", {"email": "bia@demo.test", "name": "Bia Ramos",
+                                      "password_hash": auth.hash_password(PASSWORD), "created_at": now_iso()})
+        marina = one(pconn, "SELECT id FROM users WHERE email = 'marina@demo.test'")["id"]
+        clinics.add(pconn, clinic, carla, "receptionist")
+        clinics.add(pconn, clinic, bia, "manager")
+        clinics.add(pconn, clinic, marina, "manager")
     _marina(settings, pconn, marina_id, today, now)
     _paulo(settings, pconn, paulo_id, today, now)
     pconn.close()

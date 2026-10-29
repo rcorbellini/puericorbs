@@ -3,7 +3,7 @@ prontuário. Cada teste tenta atravessar uma fronteira e precisa ser barrado."""
 
 from __future__ import annotations
 
-from conftest import H, client
+from conftest import H, client, outro_consultorio
 
 from puericorbs import config, tenancy
 from puericorbs.db import connect_platform
@@ -26,27 +26,38 @@ def test_dominio_desconhecido_fora_da_demonstracao(settings):
     assert tenancy.resolve(prod, pconn, "localhost", "dramarina").kind == "platform"
 
 
-def test_pediatra_nao_ve_os_pacientes_do_outro(settings):
-    marina = client(settings, "dramarina.localhost", "marina@demo.test")
-    assert marina.get("/api/staff/patients?practice_id=2").status_code == 404
-    paulo = client(settings, "drpauloreis.localhost", "paulo@demo.test")
+def test_pediatra_nao_ve_os_pacientes_do_outro(fresh):
+    paulo = client(fresh, "drpauloreis.localhost", "paulo@demo.test")
+    assert paulo.get("/api/staff/patients?practice_id=1").status_code == 404
     nomes = {p["name"] for p in paulo.get("/api/staff/patients").json()["patients"]}
     assert "Helena Costa" not in nomes and "Davi Nunes" in nomes
-    # a mesma conta da Marina não entra no domínio do Paulo
-    r = client(settings, "drpauloreis.localhost").post("/api/auth/demo", json={"email": "marina@demo.test"}, headers=H)
+    # a Marina cuida do consultório, mas é pediatra: também só vê os dela
+    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
+    assert marina.get("/api/staff/patients?practice_id=2").status_code == 404
+    # pelo domínio do Paulo (o mesmo consultório), ela cai na prática dela, nunca na dele
+    m = client(fresh, "drpauloreis.localhost", "marina@demo.test")
+    assert m.get("/api/site").json()["practice"]["id"] == 1
+    assert "Davi Nunes" not in {p["name"] for p in m.get("/api/staff/patients").json()["patients"]}
+    # e no domínio de outro consultório ela não entra
+    outro_consultorio(fresh)
+    r = client(fresh, "draoutra.localhost").post("/api/auth/demo", json={"email": "marina@demo.test"}, headers=H)
     assert r.status_code == 403
 
 
-def test_familia_so_ve_os_proprios_filhos(settings):
-    ana = client(settings, "dramarina.localhost", "ana@demo.test")
+def test_familia_so_ve_os_proprios_filhos(fresh):
+    ana = client(fresh, "dramarina.localhost", "ana@demo.test")
     kids = {k["name"]: k["id"] for k in ana.get("/api/family/home").json()["children"]}
     assert set(kids) == {"Helena Costa", "Theo Costa"}
-    julia = client(settings, "dramarina.localhost", "julia@demo.test")
+    julia = client(fresh, "dramarina.localhost", "julia@demo.test")
     alice = julia.get("/api/family/home").json()["children"][0]["id"]
     assert ana.get(f"/api/family/children/{alice}/health").status_code == 404
     assert ana.get("/api/staff/today").status_code == 403
-    # a mãe da Helena não tem nada no consultório do Paulo
-    r = client(settings, "drpauloreis.localhost").post("/api/auth/demo", json={"email": "ana@demo.test"}, headers=H)
+    # pelo domínio do Paulo (o mesmo consultório), a mãe da Helena só vê os filhos dela
+    pelo_paulo = client(fresh, "drpauloreis.localhost", "ana@demo.test")
+    assert {k["name"] for k in pelo_paulo.get("/api/family/home").json()["children"]} == {"Helena Costa", "Theo Costa"}
+    # e no domínio de outro consultório ela não entra
+    outro_consultorio(fresh)
+    r = client(fresh, "draoutra.localhost").post("/api/auth/demo", json={"email": "ana@demo.test"}, headers=H)
     assert r.status_code == 403
 
 

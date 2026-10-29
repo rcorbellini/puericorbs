@@ -365,8 +365,7 @@ def patient(patient_id: int, practice_id: int | None = None, ctx: Ctx = Depends(
     practice, conn = _practice(ctx, practice_id)
     row = _get(conn, "patients", patient_id, "Paciente")
     clinical = practice["role"] == "clinician"
-    if conn is ctx.conn:
-        ctx.audit("ver_paciente" if clinical else "ver_cadastro", "patient", patient_id)
+    ctx.audit("ver_paciente" if clinical else "ver_cadastro", "patient", patient_id, conn=conn)
     out = {"patient": views.patient_brief(conn, row, ctx.today, clinical=clinical), "clinical": clinical}
     appts = many(conn, "SELECT * FROM appointments WHERE patient_id = ? ORDER BY start_at DESC", (patient_id,))
     out["appointments"] = [views.appointment_row(conn, a, ctx.now) for a in appts]
