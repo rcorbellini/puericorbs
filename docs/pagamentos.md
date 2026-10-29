@@ -1,7 +1,8 @@
 # Pagamentos: a AbacatePay e como o Puericorbs receberia
 
-> 29/10/2026. Pesquisa pedida pelo dono: a AbacatePay (pela documentação da API v2, lida nesta data) e o recibo e a
-> nota da família. Do recibo e da nota, o fluxo assistido está construído (`fiscal.py`); o pagamento, ainda não.
+> 29/10/2026. Pesquisa pedida pelo dono: a AbacatePay (pela documentação da API v2), o recibo e a nota da família, e
+> os gateways que aceitam pessoa física e empresa (pelas páginas de cada um). Tudo lido nesta data. Do recibo e da nota,
+> o fluxo assistido está construído (`fiscal.py`); o pagamento pelo gateway, ainda não.
 
 ## O que a AbacatePay é
 
@@ -97,8 +98,8 @@ Isso diminui as faltas.
 ### 5. O que fica fora da AbacatePay
 
 - **A nota fiscal (NFS-e):** outro provedor, como já está no M2.
-- **A pediatra pessoa física:** precisa de um gateway que aceite CPF. A recomendação anterior (Asaas, em
-  `decisoes.md`) era por isso e pela nota fiscal; conferir as condições de hoje.
+- **A pediatra pessoa física:** precisa de um gateway que aceite CPF, como o Asaas ou a InfinitePay (abaixo, "Pessoa
+  física e empresa").
 - **A mensalidade do Puericorbs (a pediatra pagando a plataforma):** pode ser pela conta da AbacatePay da própria
   plataforma, com o CNPJ dela.
 
@@ -152,18 +153,53 @@ Pergunta do dono (29/10/2026): o médico ou o consultório precisa de CNPJ, e o 
   - outras cidades: cada prefeitura é um caso, até todas estarem na NFS-e Nacional.
 - **E a AbacatePay:** só recebe com CNPJ. A pediatra pessoa física precisa de um gateway que aceite CPF.
 
+## Pessoa física e empresa: os gateways que aceitam os dois
+
+Pergunta do dono (29/10/2026): algum gateway atende CPF e CNPJ, com taxa baixa? As condições abaixo foram lidas nas
+páginas de cada gateway nesta data. As marcadas com † não foram confirmadas na página oficial.
+
+| Gateway | Quem recebe | PIX | Cartão de crédito à vista | Pela API |
+|---|---|---|---|---|
+| **InfinitePay** | CPF, MEI e CNPJ | grátis | 3,15% (débito 1,37%), em 1 dia útil, até R$ 20 mil por mês | o link de pagamento (`POST /links`) e o aviso; sem assinatura e sem nota |
+| **Asaas** | CPF e CNPJ, com a conta aprovada e a prova de vida | R$ 1,99 por cobrança (R$ 0,99 nos 3 primeiros meses) | 2,99% + R$ 0,49 (1,99% + R$ 0,49 nos 3 primeiros meses); débito 1,89% + R$ 0,35 | PIX, boleto (R$ 1,99; com CPF, até R$ 5.000 cada), cartão, assinatura e a nota da empresa (R$ 0,49 cada) |
+| **Mercado Pago** | CPF e CNPJ | cerca de 0,99%† | a confirmar† | completa, com assinatura |
+| **AbacatePay** | só CNPJ | R$ 0,80† | R$ 0,60 + 3,5%† | PIX, checkout e assinatura no cartão |
+
+Numa consulta de R$ 450:
+
+| | InfinitePay | Asaas |
+|---|---|---|
+| no PIX | R$ 0 | R$ 1,99 (0,44%) |
+| no cartão à vista | R$ 14,18 | R$ 13,95 |
+| 80 consultas no PIX, num mês | R$ 0 | R$ 159,20 |
+
+- **O PIX Automático exige CNPJ de quem recebe** (regra do Banco Central). A pediatra pessoa física cobra a mensalidade
+  do plano no cartão recorrente (o Asaas faz) ou com um PIX novo a cada mês.
+- **A InfinitePay é a mais barata e a mais curta.** O PIX é de graça para CPF e CNPJ, e o cartão custa quase o mesmo
+  que no Asaas. Mas a API só cria o link e avisa do pagamento: não assina e não emite nota. A página do checkout não diz
+  se a conta com CPF usa a API, nem fala em assinatura do aviso; quem já integrou confere cada aviso na API
+  (`payment_check`) antes de dar baixa.
+- **O Asaas é o mais completo.** Uma integração atende pessoa física e empresa, com PIX, boleto, cartão, assinatura e,
+  para a empresa, a nota. O preço é o R$ 1,99 por PIX.
+- **Cada pediatra recebe na conta dela** (acima). O Puericorbs pode ter mais de um provedor atrás do mesmo
+  `payments.py`, e cada pediatra cola a chave do dela.
+
 ## Recomendação
 
-1. **Começar pelo PIX na recepção, com a chave de teste.** Dá para construir e testar tudo sem dinheiro de verdade,
-   inclusive os avisos. Para isso, basta uma conta da AbacatePay, que pode ser a do dono.
-2. **Antes de ligar a produção, confirmar se a Dra. Karita atende com CNPJ.** Se atender, ela abre a conta dela, e o
-   site ganha o CNPJ no rodapé, os termos e a política.
-3. **Depois:** o pagamento antes de marcar e a mensalidade do plano no cartão.
+1. **O gateway: o Asaas primeiro.** Atende a pediatra pessoa física e a com empresa numa integração só, com a
+   assinatura no cartão e a nota. A InfinitePay entra depois, para quem quer o PIX de graça, testada antes numa conta
+   com CPF. A AbacatePay serve a quem tem CNPJ e prefere ela.
+2. **Começar pelo PIX na recepção, no ambiente de teste do gateway.** Dá para construir e testar tudo sem dinheiro de
+   verdade, inclusive os avisos.
+3. **O recibo e a nota já funcionam, à mão** (acima). A nota automática entra quando a primeira pediatra tiver CNPJ e
+   o certificado A1.
+4. **Depois:** o pagamento antes de marcar e a mensalidade do plano no cartão.
 
 ## Para decidir
 
-- **CNPJ da Dra. Karita:** ela atende como pessoa física ou com CNPJ? Com CNPJ, ela está no Simples Nacional, e em
-  qual cidade? Isso decide o recibo (Receita Saúde) ou a nota (NFS-e Nacional ou provedor), e se a AbacatePay serve.
+- **Como a Dra. Karita recebe:** como pessoa física ou com CNPJ? Com CNPJ, no Simples Nacional? Ela mesma marca em
+  Consultório, e isso decide o recibo ou a nota, e se a AbacatePay serve.
+- **O gateway:** o Asaas (recomendado: completo, R$ 1,99 por PIX) ou a InfinitePay (PIX grátis, API curta)?
 - **Por onde começar:** o PIX na recepção (recomendado) ou a mensalidade do plano?
 - **A taxa:** quem paga, o consultório (o padrão) ou a família? O checkout de cartão permite repassar a taxa.
 
@@ -187,6 +223,14 @@ Nota fiscal e recibo:
 - [NFS-e Nacional, manual da API do contribuinte (gov.br/nfse)](https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/manual-contribuintes-emissor-publico-api-sistema-nacional-nfs-e-v1-2-out2025.pdf/@@download/file);
 - [Conta Azul: prazos da NFS-e padrão nacional e a CGSN 191/2026](https://contaazul.com/blog/nfse-padrao-nacional/);
 - [Contabilizei: médico pode ser MEI?](https://www.contabilizei.com.br/contabilidade-online/medico-pode-ser-mei/).
+
+Gateways que aceitam pessoa física e empresa, lidos em 29/10/2026:
+- [Asaas: PIX](https://www.asaas.com/pix-asaas) e [preços e taxas](https://www.asaas.com/precos-e-taxas);
+- [Asaas: pessoa física pode emitir boleto](https://blog.asaas.com/pessoa-fisica-pode-emitir-boleto/amp/);
+- [InfinitePay: PIX](https://www.infinitepay.io/pix), [taxas](https://www.infinitepay.io/blog/infinitepay-taxas)
+  (de 20/10/2026) e [checkout integrado](https://www.infinitepay.io/checkout);
+- [uma integração do checkout da InfinitePay](https://github.com/ghostmoneyx1/escola-castelo-do-saber/pull/1), que
+  confere cada aviso com o `payment_check`.
 
 Taxas, de fontes de terceiros sem data:
 - [discussão no GitHub do Pix](https://github.com/bacen/pix-api/discussions/266);
