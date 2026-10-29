@@ -26,7 +26,7 @@ export async function route(app, opts = {}) {
   document.body.classList.add('has-dock');
   const root = document.getElementById('app');
   if (!document.getElementById('famapp')) {
-    root.innerHTML = String(html`<div class="famapp" id="famapp"><div id="fview"></div></div>
+    root.innerHTML = String(html`<div class="famapp" id="famapp"><div class="fview" id="fview"></div></div>
       <nav class="dock" aria-label="Seções">${DOCK.map(([k, l, ic]) => html`<a href="#/${k}" data-dock="${k}">${icon(ic)}<span>${l}</span></a>`)}</nav>`);
   }
   let { name, query } = parse();
