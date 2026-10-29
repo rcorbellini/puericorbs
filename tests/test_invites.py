@@ -6,6 +6,7 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
+import segno
 from conftest import H, client, outro_consultorio
 from fastapi.testclient import TestClient
 
@@ -325,3 +326,25 @@ def test_migracao_do_convite_pre_preenchido(tmp_path):
     assert conn.execute("PRAGMA user_version").fetchone()[0] == PRACTICE_VERSION
     assert one(conn, "SELECT name FROM sqlite_master WHERE name = 'invite_prefill'")
 
+
+def test_todo_convite_vem_com_o_qr_code_do_proprio_link(fresh):
+    """O QR code é o do link que acabou de nascer (outro link, outro QR): a recepção mostra na tela ou imprime."""
+    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
+    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
+    dono = admin(fresh)
+    feitos = [
+        marina.post("/api/staff/invites", json={"role": "receptionist"}, headers=H).json(),
+        carla.post("/api/staff/family-invites", json={"name": "Rita"}, headers=H).json(),
+        marina.post("/api/staff/guardians/1/invite", headers=H).json(),
+        dono.post("/api/admin/invites", json={"kind": "practice"}, headers=H).json(),
+        dono.post("/api/admin/invites", json={"kind": "admin"}, headers=H).json(),
+    ]
+    for x in feitos:
+        # o QR feito aqui, direto do link, sem passar pelo código do Puericorbs
+        esperado = segno.make(x["link"], error="m").svg_inline(scale=1, border=4, dark="#1c2b3a", light="#ffffff", omitsize=True)
+        assert x["qr"].startswith("<svg viewBox=") and x["qr"] == esperado, x["link"]
+    assert len({x["qr"] for x in feitos}) == len(feitos)
+    # e o convite da família nunca guarda nome no banco da plataforma, nem se alguém mandar
+    pconn = connect_platform(fresh.data_dir)
+    _, iid = invites.create(pconn, kind="family", practice_id=1, label="Fulana de Tal")
+    assert one(pconn, "SELECT label FROM invites WHERE id = ?", (iid,))["label"] is None

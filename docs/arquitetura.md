@@ -86,8 +86,8 @@ A visibilidade é decidida no servidor, na consulta ao banco, nunca na tela.
 ## Como cada pessoa entra: o convite
 
 Ninguém escolhe a senha de ninguém. Toda conta nasce de um convite (`invites.py`, `api_invites.py`): um link de uso
-único, que vale 7 dias, gerado por quem tem o direito e mandado por essa pessoa (WhatsApp, cópia); o Puericorbs não
-manda nada sozinho.
+único, que vale 7 dias, gerado por quem tem o direito e mandado por essa pessoa (WhatsApp, cópia, ou o QR code na tela
+da recepção ou impresso); o Puericorbs não manda nada sozinho.
 
 | Convite | Quem gera | Onde abre | O que faz |
 |---|---|---|---|

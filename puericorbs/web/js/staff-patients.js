@@ -132,7 +132,7 @@ function familyAccess(list, p, practiceId) {
     try {
       const x = await api(`/api/staff/guardians/${b.dataset.g}/invite${practiceId ? `?practice_id=${practiceId}` : ''}`, { method: 'POST' });
       d.close();
-      shareLink({ title: `O acesso de ${b.dataset.name.split(' ')[0]}`, link: x.link, text: x.text, phone: x.phone,
+      shareLink({ title: `O acesso de ${b.dataset.name.split(' ')[0]}`, link: x.link, text: x.text, phone: x.phone, qr: x.qr,
         note: x.phone ? 'O WhatsApp abre já na conversa com o telefone do cadastro.' : 'Sem telefone no cadastro: copie o link e mande por onde a família preferir.' })
         .el.addEventListener('close', refresh);
     } catch (e) { b.disabled = false; fail(e); }

@@ -369,7 +369,7 @@ def staff_invite(body: StaffInvite, request: Request, ctx: Ctx = Depends(dep)):
         invites.log(ctx.pconn, "convite_gerado", user_id=ctx.user["id"], practice_id=ctx.practice_id,
                     detail=invites.ROLE_LABEL[body.role].lower() + (f": {body.label}" if body.label else ""), ip=ctx.ip)
     link = request_link(request, token)
-    return {"link": link, "text": invite_text(body.role, body.label, clinic["name"], link),
+    return {"link": link, "qr": invites.qr_svg(link), "text": invite_text(body.role, body.label, clinic["name"], link),
             "invite": invites.view(one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (iid,)))}
 
 
@@ -464,7 +464,7 @@ def family_invite(body: FamilyInvite, request: Request, ctx: Ctx = Depends(dep))
     text = (f"{hi} Este é o convite para o app de {practice['name']}: lá você acompanha a saúde e a agenda da criança, "
             f"marca consultas e manda exames. Confira os dados, complete o que faltar e crie a sua senha por este link "
             f"(vale 7 dias): {link}")
-    return {"link": link, "text": text, "phone": data["guardian"].get("phone"),
+    return {"link": link, "qr": invites.qr_svg(link), "text": text, "phone": data["guardian"].get("phone"),
             "invite": invites.view(one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (iid,)))}
 
 
@@ -503,4 +503,4 @@ def guardian_invite(guardian_id: int, request: Request, practice_id: int | None 
     first = g["name"].split()[0]
     text = (f"Olá, {first}! Este é o seu acesso ao app de {practice['name']}: lá você acompanha a saúde e a agenda, "
             f"marca consultas e manda exames. Crie a sua senha por este link (vale 7 dias): {link}")
-    return {"link": link, "text": text, "phone": g["phone"], "invite": invites.view(row)}
+    return {"link": link, "qr": invites.qr_svg(link), "text": text, "phone": g["phone"], "invite": invites.view(row)}

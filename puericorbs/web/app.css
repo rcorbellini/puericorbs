@@ -178,6 +178,8 @@ svg.chart { display: block; width: 100%; height: auto; overflow: visible; touch-
 .times { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .time { height: 44px; border: 0; border-radius: 999px; cursor: pointer; font: 700 14px/1 var(--font); font-variant-numeric: tabular-nums; color: var(--text); background: var(--well); box-shadow: inset 0 0 0 .5px var(--hair); }
 .time[aria-pressed="true"] { background: var(--lens), color-mix(in srgb, var(--text) 9%, transparent); box-shadow: var(--lens-rim), var(--lens-glow); }
+.qrbox { width: min(260px, 100%); aspect-ratio: 1; padding: 6px; border-radius: 20px; background: #fff; box-shadow: inset 0 0 0 .5px var(--hair); }
+.qrbox svg { display: block; width: 100%; height: 100%; }
 .libtns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .sumrow { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; }
 .sumrow + .sumrow { border-top: .5px solid var(--hair); }

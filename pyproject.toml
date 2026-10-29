@@ -9,6 +9,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "pillow>=11",
     "pillow-heif>=0.18",
+    "segno>=1.6.6",
 ]
 
 [project.scripts]

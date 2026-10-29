@@ -197,19 +197,19 @@ async function act(app, what, id, d, el) {
         'Quem receber cria a conta e o próprio consultório; o domínio você liga depois, aqui mesmo.');
       if (!v) return;
       const r = await api('/api/admin/invites', { method: 'POST', body: { kind: 'practice', label: v.label || null } });
-      shareLink({ title: 'Convite: consultório próprio', link: r.link,
+      shareLink({ title: 'Convite: consultório próprio', link: r.link, qr: r.qr,
         text: `Olá! Este é o convite para você ter o seu consultório no Puericorbs: agenda, acompanhamento das crianças, planos e o app das famílias, no seu domínio. Vale 7 dias: ${r.link}`,
         note: 'Quando o convite for aceito, o consultório aparece aqui, esperando o domínio.' }).el.addEventListener('close', again);
     }
     if (what === 'inv-admin') {
       if (!await ask('Convidar alguém para a administração?', 'Quem aceitar acompanha todos os consultórios, entra em cada um vendo como quem usa, liga domínios e gera convites, inclusive outros de administração.', 'Gerar o link')) return;
       const r = await api('/api/admin/invites', { method: 'POST', body: { kind: 'admin' } });
-      shareLink({ title: 'Convite: administração', link: r.link, note: 'A senha da administração tem 12 ou mais caracteres.' }).el.addEventListener('close', again);
+      shareLink({ title: 'Convite: administração', link: r.link, qr: r.qr, note: 'A senha da administração tem 12 ou mais caracteres.' }).el.addEventListener('close', again);
     }
     if (what === 'inv-clinician') {
       const p = d.practices.find((x) => x.id === id);
       const r = await api('/api/admin/invites', { method: 'POST', body: { kind: 'clinician', practice_id: id } });
-      shareLink({ title: `Convite: pediatra de ${p.name}`, link: r.link,
+      shareLink({ title: `Convite: pediatra de ${p.name}`, link: r.link, qr: r.qr,
         text: `Olá! Este é o link para você entrar no seu consultório no Puericorbs e criar a sua senha. Vale 7 dias: ${r.link}`,
         note: r.warning || 'Quem receber cria a senha, diz como o nome aparece no site e entra.' }).el.addEventListener('close', again);
     }

@@ -193,6 +193,9 @@ def shots(out: Path, only: str = "") -> int:
         run("convite-familia-nova-escuro-390", "dramarina.localhost", "#/convite/", PHONE, theme="escuro", before=family_prefill())
         run("convidar-familia-390", "dramarina.localhost", "#/recepcao", PHONE, c, after=click('[data-act="invite-family"]'))
         run("familias-convites-1280", "dramarina.localhost", "#/pacientes", DESK, c, before=family_prefill(token=False))
+        run("convite-qr-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=lambda page: (
+            page.click('[data-team="invite"]'), page.click('dialog.dlg .dlg-foot .btn:not(.ghost)'),
+            page.wait_for_selector('[data-mode="qr"]'), page.click('[data-mode="qr"]')))
         run("consultorio-bia-1280", "dramarina.localhost", "#/consultorio", DESK, "bia@demo.test")
         run("consultorio-bia-390", "dramarina.localhost", "#/consultorio", PHONE, "bia@demo.test")
         run("consultorio-convidar-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-team="invite"]'))

@@ -77,7 +77,7 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `clinics.py`: o consultório (a clínica): as pediatras dele e a equipe que atende todas (`clinic_members`: a
   atendente e a administração do consultório).
 - `invites.py`: os quatro convites (consultório próprio, equipe do consultório, família, administração), onde cada um
-  abre e o registro da plataforma. `api_invites.py`: abrir, aceitar, a equipe do consultório e o que a pediatra e a
+  abre, o QR code de cada link (`qr_svg`, com o `segno`) e o registro da plataforma. `api_invites.py`: abrir, aceitar, a equipe do consultório e o que a pediatra e a
   recepção geram. `api_admin.py`: o painel e o "vendo como" (o link de entrada, `handoffs`).
 - `context.py`: o contexto de cada pedido (site, usuário, papel, a prática de quem entra por outro domínio do
   consultório e, com a administração vendo como alguém, `actor`) e os guardas (`staff`, `clinician`, `manager`,

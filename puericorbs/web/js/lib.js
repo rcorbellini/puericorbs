@@ -124,6 +124,7 @@ const P = {
   cash: '<rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  qr: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 19h1M19 14h1.5"/>',
 };
 export const icon = (name, extra = '') => raw(`<svg class="ic ${extra}" viewBox="0 0 24 24" aria-hidden="true">${P[name] || ''}</svg>`);
 
@@ -227,26 +228,62 @@ export function waNumber(phone) {
 // a conversa do WhatsApp já com a mensagem escrita (sem número, a pessoa escolhe o contato)
 export const waLink = (phone, text) => `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}`;
 
-// O link de um convite: copiar, mandar pelo WhatsApp (já com a mensagem e, se houver, o telefone) ou pelo compartilhar
-// do celular. Quem gera o link é quem manda: nada sai do Puericorbs sozinho.
-export function shareLink({ title, intro, link, text, phone, note }) {
+// O QR code (o SVG que o servidor manda) vira um PNG para baixar e imprimir ou mandar: tudo aqui, sem nada de fora
+function downloadQr(svg, name) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1024;
+    const g = canvas.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.drawImage(img, 0, 0, 1024, 1024);
+    canvas.toBlob((blob) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '))}`;
+}
+
+// O link de um convite: como link (copiar, mandar pelo WhatsApp já com a mensagem e, se houver, o telefone, ou pelo
+// compartilhar do celular) ou como QR code (a pessoa aponta a câmera para a tela, ou o QR vai impresso). Quem gera o
+// link é quem manda: nada sai do Puericorbs sozinho.
+export function shareLink({ title, intro, link, text, phone, note, qr }) {
   const message = text || link;
   const wa = waLink(phone, message);
   const d = dialog({
     title,
     body: html`${intro ? html`<p class="muted pretty">${intro}</p>` : ''}
-      <label class="field">${icon('link')}<input data-link readonly value="${link}" aria-label="O link" style="font-size:13px"></label>
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        <button class="btn" type="button" data-share="copy">${icon('copy')}Copiar o link</button>
-        <a class="btn ghost" href="${wa}" target="_blank" rel="noopener">${icon('message')}Mandar pelo WhatsApp</a>
-        ${navigator.share ? html`<button class="btn ghost" type="button" data-share="native">${icon('upload')}Outro app</button>` : ''}
+      ${qr ? html`<div class="seg" role="group" aria-label="Como mandar"><button type="button" data-mode="link" aria-pressed="true">${icon('link')}Link</button><button type="button" data-mode="qr" aria-pressed="false">${icon('qr')}QR code</button></div>` : ''}
+      <div data-panel="link" style="display:flex;flex-direction:column;gap:12px">
+        <label class="field">${icon('link')}<input data-link readonly value="${link}" aria-label="O link" style="font-size:13px"></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn" type="button" data-share="copy">${icon('copy')}Copiar o link</button>
+          <a class="btn ghost" href="${wa}" target="_blank" rel="noopener">${icon('message')}Mandar pelo WhatsApp</a>
+          ${navigator.share ? html`<button class="btn ghost" type="button" data-share="native">${icon('upload')}Outro app</button>` : ''}
+        </div>
       </div>
+      ${qr ? html`<div data-panel="qr" hidden style="display:flex;flex-direction:column;align-items:center;gap:12px">
+        <div class="qrbox" role="img" aria-label="QR code do convite">${raw(qr)}</div>
+        <p class="t-small muted pretty" style="text-align:center">A pessoa aponta a câmera do celular para o QR e o convite abre.</p>
+        <button class="btn ghost" type="button" data-share="qr">${icon('download')}Baixar o QR code</button>
+      </div>` : ''}
       ${note ? html`<p class="note" style="padding:0">${note}</p>` : ''}`,
   });
   const input = d.el.querySelector('[data-link]');
   d.el.addEventListener('click', async (ev) => {
+    const m = ev.target.closest('[data-mode]');
+    if (m) {
+      d.el.querySelectorAll('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', String(x === m)));
+      d.el.querySelectorAll('[data-panel]').forEach((x) => { x.hidden = x.dataset.panel !== m.dataset.mode; });
+      return;
+    }
     const b = ev.target.closest('[data-share]');
     if (!b) return;
+    if (b.dataset.share === 'qr') { downloadQr(qr, 'convite-qr.png'); return; }
     if (b.dataset.share === 'native') {
       try { await navigator.share({ title, text: message }); } catch { /* a pessoa desistiu */ }
       return;

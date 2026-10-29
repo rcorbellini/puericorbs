@@ -4,6 +4,12 @@
 
 ## Tomadas
 
+### 29/10/2026 — o QR code em todo convite
+
+41. **Todo convite sai como link e como QR code.** Pedido do dono. Na recepção, a pessoa aponta a câmera do celular
+    para a tela, ou o QR vai impresso. O QR é feito no servidor (`invites.qr_svg`, com o `segno`, sem nada de fora) e
+    vira PNG no navegador para baixar. O link continua de uso único e vale 7 dias: o QR é o mesmo link.
+
 ### 29/10/2026 — o convite da família pré-preenchido
 
 40. **O convite da família pode chegar pré-preenchido.** Pedido do dono: "o invite do paciente pode ser pré-preenchido

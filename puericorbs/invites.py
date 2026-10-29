@@ -22,6 +22,8 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta
 
+import segno
+
 from .auth import token_hash
 from . import clinics
 from .db import insert, many, now_iso, one
@@ -111,6 +113,12 @@ def view(row: dict) -> dict:
             "role_label": ROLE_LABEL.get(row["role"] or ""), "label": row["label"], "created_at": row["created_at"],
             "expires_at": row["expires_at"], "used_at": row["used_at"], "status": status(row),
             "practice_id": row["practice_id"], "new_practice_id": row["new_practice_id"], "clinic_id": row["clinic_id"]}
+
+
+def qr_svg(link: str) -> str:
+    """O QR code do link, em SVG (escuro no fundo branco, com a margem que a câmera precisa): a pessoa aponta o
+    celular para a tela da recepção, ou o QR vai impresso. Feito aqui, sem nada de fora."""
+    return segno.make(link, error="m").svg_inline(scale=1, border=4, dark="#1c2b3a", light="#ffffff", omitsize=True)
 
 
 def page_link(host: str, scheme: str, token: str) -> str:

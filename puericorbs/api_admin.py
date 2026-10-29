@@ -155,7 +155,7 @@ def admin_invite(body: AdminInvite, request: Request, ctx: Ctx = Depends(dep)):
             detail += f": {body.label}"
         invites.log(ctx.pconn, "convite_gerado", user_id=ctx.user["id"], practice_id=body.practice_id, detail=detail,
                     ip=ctx.ip)
-    return {"link": link, "warning": warning,
+    return {"link": link, "qr": invites.qr_svg(link), "warning": warning,
             "invite": invites.view(one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (iid,)))}
 
 
