@@ -1,6 +1,6 @@
 // O que se vê antes de entrar: a plataforma (o endereço que não é de nenhum consultório) e o site de cada pediatra,
 // aberto pelo domínio dele, com a entrada da equipe e da família.
-import { api, html, icon, fail, toast, dialog, ask, initials, dateFull } from './lib.js';
+import { api, html, raw, icon, fail, toast, dialog, ask, initials, dateFull } from './lib.js';
 
 const ACCENT_HEX = { agua: '#08746b', azul: '#1f5fbf', coral: '#b8452a', lavanda: '#5b47c4' };
 const ROLE_ORDER = { clinician: 0, receptionist: 1, guardian: 2 };
@@ -218,6 +218,29 @@ export async function invite(app) {
         ${row('Nome no site', html`<input class="inline" name="practice_name" value="${own ? inv.practice.name : ''}" placeholder="Dra. Nome Sobrenome" required>`, 'como as famílias veem você')}
         ${row('CRM e RQE', html`<input class="inline" name="registry" value="${own ? inv.practice.registry || '' : ''}" placeholder="CRM-UF 000000">`)}` : ''}</div>
       <div class="rows">${emailRow()}${passRow()}</div>`;
+  } else if (inv.kind === 'family' && inv.prefill) {
+    // a família nova: o que o consultório já escreveu vem preenchido, e ela completa o resto
+    const g = inv.prefill.guardian;
+    const c = inv.prefill.child;
+    cap = `Convite · ${inv.practice.name}`;
+    title = g.name ? `Olá, ${g.name.split(' ')[0]}` : 'Olá';
+    lead = html`Aqui você acompanha a saúde e a agenda da criança com <b>${inv.practice.name}</b>: a próxima consulta, as vacinas, o que fazer em casa, e manda exames e fotos.`;
+    more = 'Confira o que o consultório já escreveu e complete o que faltar. Se você já usa o Puericorbs, use o mesmo e-mail e a mesma senha.';
+    fields = html`<span class="t-cap">Você</span>
+      <div class="rows">
+        ${row('Seu nome', html`<input class="inline" name="name" value="${g.name || ''}" autocomplete="name" placeholder="Nome e sobrenome" required>`)}
+        ${row('Você é', html`<select class="inline" name="relation" required>${['mãe', 'pai', 'avó', 'avô', 'responsável'].map((r) => html`<option ${r === g.relation ? raw('selected') : ''}>${r}</option>`)}</select>`)}
+        ${row('Celular', html`<input class="inline" name="phone" value="${g.phone || ''}" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" required>`, 'com o DDD')}
+      </div>
+      <span class="t-cap">A criança</span>
+      <div class="rows">
+        ${row('Nome', html`<input class="inline" name="child_name" value="${c.name || ''}" placeholder="Nome e sobrenome" required>`)}
+        <div class="row"><span class="lbl">Sexo</span><div class="seg" role="group" aria-label="Sexo">${[['F', 'Menina'], ['M', 'Menino']].map(([k, l]) => html`<button type="button" data-sex="${k}" aria-pressed="${k === c.sex}">${l}</button>`)}</div><input type="hidden" name="child_sex" value="${c.sex || ''}"></div>
+        ${row('Nascimento', html`<input class="inline" type="date" name="child_birth" value="${c.birth_date || ''}" max="${s.today}" required>`)}
+        ${row('Semanas de gestação', html`<input class="inline" name="child_weeks" inputmode="numeric" placeholder="ex.: 35">`, 'só se foi prematuro')}
+      </div>
+      <span class="t-cap">Para entrar no app</span>
+      <div class="rows">${emailRow(g.email || '')}${passRow()}</div>`;
   } else if (inv.kind === 'family') {
     const g = inv.guardian;
     const acc = inv.account;
@@ -273,9 +296,17 @@ export async function invite(app) {
         </div>
       </section>
     </div>`);
-  root.querySelector('[data-invite]').addEventListener('submit', async (ev) => {
+  const form = root.querySelector('[data-invite]');
+  form.addEventListener('click', (ev) => {  // menina ou menino (a família nova)
+    const b = ev.target.closest('[data-sex]');
+    if (!b) return;
+    form.querySelector('[name="child_sex"]').value = b.dataset.sex;
+    form.querySelectorAll('[data-sex]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  });
+  form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const body = Object.fromEntries(new FormData(ev.target));
+    if ('child_weeks' in body) body.child_weeks = body.child_weeks.trim() ? Number(body.child_weeks) : null;
     const submit = ev.target.querySelector('[type="submit"]');
     submit.disabled = true;
     try {

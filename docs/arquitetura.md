@@ -97,6 +97,7 @@ manda nada sozinho.
 | Administração do consultório | a administração do consultório | qualquer domínio do consultório | mais alguém que cuida da equipe e da recepção, sem nada clínico |
 | Pediatra de um consultório vazio | a plataforma, no painel | o domínio do consultório | a pediatra do consultório que a plataforma criou vazio; ela diz o nome do site e o CRM |
 | Família | a pediatra ou a recepção, na ficha (**Acesso da família**) | qualquer domínio do consultório | o responsável cria a senha do app (ou uma nova, se esqueceu) |
+| Família nova (pré-preenchido) | a pediatra ou a recepção, em **Convidar família** (Recepção e Famílias) | qualquer domínio do consultório | o responsável confere o que veio escrito, completa o resto e cria a senha; a ficha nasce aí, no banco da prática. Quem já tem conta liga o filho novo com a própria senha |
 | Administração da plataforma | a plataforma, no painel; a linha de comando | qualquer site nosso | uma conta da plataforma (senha de 12 ou mais) |
 
 As regras que fecham o caminho para tomar a conta de alguém:

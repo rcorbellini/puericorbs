@@ -3,7 +3,7 @@
 import { api, html, raw, icon, toast, fail, dialog, ask, money, dateLong, dateBR, dateFull, initials, statusPill, fileIcon,
   ago, actions, debounce, careTick, carePill, relDay, shareLink } from './lib.js';
 import { growthChart, bindGrowth, growthTable } from './charts.js';
-import { newAppointment, newFamily, isClinician } from './staff-common.js';
+import { newAppointment, newFamily, inviteFamily, isClinician } from './staff-common.js';
 import { setCount, refresh } from './staff.js';
 
 const SEX = { F: 'menina', M: 'menino' };
@@ -19,10 +19,22 @@ export async function patients(view, params, app) {
     <div class="topbar">
       <div class="titles"><h1 class="t-title">${title}</h1><p class="t-small muted" data-count></p></div>
       ${practices.length > 1 ? html`<div class="seg" role="group" aria-label="Consultório">${practices.map((p) => html`<button type="button" data-act="practice" data-id="${p.id}" aria-pressed="${p.id === practiceId}">${p.name}</button>`)}</div>` : ''}
+      <button class="btn ghost" type="button" data-act="invite">${icon('link')}Convidar família</button>
       <button class="btn" type="button" data-act="new">${icon('plus')}Família nova</button>
     </div>
+    <div data-pending></div>
     <label class="field">${icon('search')}<input data-q type="search" value="${q}" placeholder="Buscar pelo nome da criança, do responsável ou pelo telefone" aria-label="Buscar"></label>
     <section class="glass card" style="padding:8px 14px" data-list><p class="loading" style="min-height:120px">Carregando…</p></section>`);
+  // os convites de família nova à espera do aceite (o que a recepção escreveu fica no banco da pediatra)
+  const pending = async () => {
+    const r = await api(`/api/staff/family-invites?practice_id=${practiceId}`);
+    const who = (i) => [i.guardian.name ? `${i.guardian.name}${i.guardian.relation ? ` (${i.guardian.relation})` : ''}` : 'Responsável sem nome',
+      i.child.name ? `criança: ${i.child.name}` : null].filter(Boolean).join(' · ');
+    view.querySelector('[data-pending]').innerHTML = r.invites.length ? String(html`<section class="glass card" style="display:flex;flex-direction:column;gap:4px">
+      <div class="phead"><h2 class="t-h3">Convites esperando a família</h2><span class="t-small muted">${r.invites.length}</span></div>
+      <div>${r.invites.map((i) => html`<div class="li"><span class="grow" style="min-width:0"><b style="display:block">${who(i)}</b><span class="t-small muted">mandado em ${dateBR(i.created_at)} · vale até ${dateBR(i.expires_at)}</span></span>
+        <button class="linkbtn t-small" type="button" data-act="cancel-invite" data-id="${i.id}">Cancelar</button></div>`)}</div></section>`) : '';
+  };
   const list = view.querySelector('[data-list]');
   const load = async () => {
     const r = await api(`/api/staff/patients?q=${encodeURIComponent(q)}&practice_id=${practiceId}`);
@@ -41,9 +53,16 @@ export async function patients(view, params, app) {
   view.querySelector('[data-q]').addEventListener('input', debounce((ev) => { q = ev.target.value.trim(); load().catch(fail); }, 250));
   actions(view, {
     new: () => newFamily(app, practiceId, (p) => { location.hash = `#/paciente/${p.id}${practiceId !== app.site.practice.id ? `?practice=${practiceId}` : ''}`; }),
+    invite: () => inviteFamily(app, { practiceId }, () => pending().catch(fail)),
+    'cancel-invite': async (el) => {
+      if (!await ask('Cancelar este convite?', 'O link deixa de abrir na hora, e o que foi escrito da família é apagado.', 'Cancelar o convite', true)) return;
+      await api(`/api/staff/invites/${el.dataset.id}/revoke`, { method: 'POST' });
+      toast('Convite cancelado.');
+      pending().catch(fail);
+    },
     practice: (el) => { location.hash = `#/pacientes?practice=${el.dataset.id}`; },
   });
-  await load();
+  await Promise.all([load(), pending()]);
 }
 
 // ---- a ficha ----------------------------------------------------------------------------------------------------------

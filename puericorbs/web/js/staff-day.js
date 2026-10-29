@@ -1,6 +1,6 @@
 // O dia: o painel do pediatra (Hoje), a agenda em grade e as tarefas da recepção.
 import { api, html, raw, icon, toast, money, dateLong, dateBR, addDays, initials, statusPill, fileIcon, ago, actions, relDay, weekday, ask } from './lib.js';
-import { openAppointment, newAppointment, greeting, waButton, bindWhatsApp, askedText } from './staff-common.js';
+import { openAppointment, newAppointment, greeting, waButton, bindWhatsApp, askedText, inviteFamily } from './staff-common.js';
 import { setCount, refresh } from './staff.js';
 
 export const shortName = (name) => {
@@ -256,6 +256,7 @@ export async function reception(view, params, app) {
   view.innerHTML = String(html`
     <div class="topbar">
       <div class="titles"><span class="t-cap">${dateLong(r.date)}</span><h1 class="t-title">${greeting(new Date().toTimeString().slice(0, 5))}, ${shortName(app.me.name)}</h1></div>
+      <button class="btn ghost" type="button" data-act="invite-family">${icon('link')}Convidar família</button>
       <button class="btn" type="button" data-act="new">${icon('plus')}Agendar</button>
     </div>
     ${r.practices.map((p, pi) => html`
@@ -301,6 +302,7 @@ export async function reception(view, params, app) {
   bindWhatsApp(view, app, (id) => r.practices.flatMap((p) => p.confirm).find((a) => a.id === id), refresh);
   actions(view, {
     new: () => newAppointment(app, {}, refresh),
+    'invite-family': () => inviteFamily(app),
     appt: (el) => openAppointment(app, r.practices[Number(el.dataset.p)][el.dataset.kind].find((a) => a.id === Number(el.dataset.id)), refresh),
     confirm: async (el) => {
       await api(`/api/staff/appointments/${el.dataset.id}/action`, { method: 'POST', body: { action: 'confirmar', practice_id: r.practices[Number(el.dataset.p)].practice.id } });

@@ -79,7 +79,8 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
 - **Convites:** toda conta nasce de um link de uso único. A plataforma convida a pediatra que cria o consultório; a
   administração do consultório convida, em **Consultório**, outras pediatras (cada uma com os pacientes dela), a
   atendente e mais alguém da administração; a pediatra e a recepção mandam o acesso da família pela ficha (**Acesso da
-  família**, já com o WhatsApp). Uma conta que já existe só se liga com a senha dela.
+  família**, já com o WhatsApp) ou convidam uma família nova já com o que sabem (**Convidar família**: ela confere,
+  completa o resto e a ficha nasce no aceite). Uma conta que já existe só se liga com a senha dela.
 - **Administração:** o painel em `#/admin`, de qualquer site nosso, mostra os consultórios em números, a equipe de cada
   um, os convites e o que aconteceu; liga domínios, gera os convites da plataforma e entra em qualquer consultório
   **vendo como** a pediatra, a atendente ou uma família, com uma faixa no topo (tudo fica no registro do consultório).

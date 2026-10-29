@@ -87,6 +87,24 @@ def shots(out: Path, only: str = "") -> int:
                     pconn.close()
             return make
 
+        def family_prefill(token: bool = True):
+            """Um convite de família nova, com o que a recepção já sabia (a mãe e o nome da criança)."""
+            def make(ctx, base):
+                import json
+                from puericorbs import config, invites
+                from puericorbs.db import connect_platform, connect_practice, insert, now_iso
+                data = config.load().data_dir
+                pconn = connect_platform(data)
+                tok, iid = invites.create(pconn, kind="family", practice_id=1)
+                pconn.close()
+                conn = connect_practice(data, 1)
+                insert(conn, "invite_prefill", {"invite_id": iid, "created_at": now_iso(), "data": json.dumps(
+                    {"guardian": {"name": "Rita Prado", "relation": "mãe", "phone": "(11) 95555-2000"},
+                     "child": {"name": "Davi Prado", "sex": "M"}}, ensure_ascii=False)})
+                conn.close()
+                return tok if token else ""
+            return make
+
         def click(selector: str):
             return lambda page: page.click(selector)
 
@@ -171,6 +189,10 @@ def shots(out: Path, only: str = "") -> int:
         run("convite-invalido-390", "dramarina.localhost", "#/convite/inventado", PHONE, expect_404=True)
         run("convite-pediatra-do-consultorio-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("clinician", clinic=True))
         run("convite-administracao-do-consultorio-390", "dramarina.localhost", "#/convite/", PHONE, before=invite("manager", clinic=True))
+        run("convite-familia-nova-390", "dramarina.localhost", "#/convite/", PHONE, before=family_prefill())
+        run("convite-familia-nova-escuro-390", "dramarina.localhost", "#/convite/", PHONE, theme="escuro", before=family_prefill())
+        run("convidar-familia-390", "dramarina.localhost", "#/recepcao", PHONE, c, after=click('[data-act="invite-family"]'))
+        run("familias-convites-1280", "dramarina.localhost", "#/pacientes", DESK, c, before=family_prefill(token=False))
         run("consultorio-bia-1280", "dramarina.localhost", "#/consultorio", DESK, "bia@demo.test")
         run("consultorio-bia-390", "dramarina.localhost", "#/consultorio", PHONE, "bia@demo.test")
         run("consultorio-convidar-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-team="invite"]'))

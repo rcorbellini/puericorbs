@@ -1,7 +1,7 @@
 // O que as telas da equipe dividem: o diálogo do agendamento (mudar o estado, começar a consulta, receber), marcar
 // consulta, cadastrar família e chamar a família no WhatsApp com a mensagem pronta.
 import { api, html, raw, icon, dialog, toast, fail, money, dateLong, dateBR, statusPill, initials, centsInput, toCents, debounce, isoDate,
-  relDay, weekday, firstName, waNumber, waLink } from './lib.js';
+  relDay, weekday, firstName, waNumber, waLink, shareLink } from './lib.js';
 
 export const METHODS = { pix: 'PIX', cartao: 'Cartão', dinheiro: 'Dinheiro' };
 
@@ -308,6 +308,53 @@ export function newFamily(app, practiceId, onDone) {
 export function askedText(iso, todayIso) {
   const time = iso.slice(11, 16);
   return iso.slice(0, 10) === todayIso ? `às ${time}` : `em ${dateBR(iso)}, às ${time}`;
+}
+
+// o convite de uma família que ainda não está no cadastro: quem convida escreve o que já sabe (tudo opcional), e a
+// família confere e completa no celular; a ficha nasce quando ela aceita
+export function inviteFamily(app, { practiceId } = {}, onDone) {
+  const practices = app.me.practices || [];
+  let pid = practiceId || app.site.practice.id;
+  let sex = '';
+  const d = dialog({
+    title: 'Convidar uma família',
+    body: html`<p class="muted pretty">Escreva o que você já sabe. A família confere e completa o resto no celular, e a ficha nasce quando ela aceitar.</p>
+      ${practices.length > 1 ? html`<div class="seg" role="group" aria-label="Pediatra">${practices.map((p) => html`<button type="button" data-practice="${p.id}" aria-pressed="${p.id === pid}">${p.name}</button>`)}</div>` : ''}
+      <span class="t-cap">Responsável</span>
+      <div class="rows">
+        <label class="row"><span class="lbl">Nome</span><input class="inline" data-f="name" autocomplete="off"></label>
+        <label class="row"><span class="lbl">É</span><select class="inline" data-f="relation"><option value="">—</option><option>mãe</option><option>pai</option><option>avó</option><option>avô</option><option>responsável</option></select></label>
+        <label class="row"><span class="lbl">Celular<span class="sub">para mandar no WhatsApp</span></span><input class="inline" data-f="phone" inputmode="tel"></label>
+        <label class="row"><span class="lbl">E-mail</span><input class="inline" data-f="email" type="email"></label>
+      </div>
+      <span class="t-cap">Criança</span>
+      <div class="rows">
+        <label class="row"><span class="lbl">Nome</span><input class="inline" data-f="child_name" autocomplete="off"></label>
+        <div class="row"><span class="lbl">Sexo</span><div class="seg" role="group" aria-label="Sexo"><button type="button" data-sex="F" aria-pressed="false">Menina</button><button type="button" data-sex="M" aria-pressed="false">Menino</button></div></div>
+        <label class="row"><span class="lbl">Nascimento</span><input class="inline" type="date" data-f="child_birth" max="${app.today}"></label>
+      </div>`,
+    onMount: (dlg) => dlg.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-sex], [data-practice]');
+      if (!b) return;
+      if (b.dataset.practice) {
+        pid = Number(b.dataset.practice);
+        dlg.querySelectorAll('[data-practice]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        return;
+      }
+      sex = sex === b.dataset.sex ? '' : b.dataset.sex;  // tocar de novo desmarca: a família escolhe
+      dlg.querySelectorAll('[data-sex]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.sex === sex)));
+    }),
+    actions: [{ label: 'Cancelar', kind: 'ghost' }, { label: 'Gerar o convite', run: async (dlg) => {
+      const v = (k) => dlg.querySelector(`[data-f="${k}"]`).value.trim() || null;
+      const x = await api('/api/staff/family-invites', { method: 'POST', body: {
+        practice_id: pid, name: v('name'), relation: v('relation'), phone: v('phone'), email: v('email'),
+        child_name: v('child_name'), child_sex: sex || null, child_birth: v('child_birth') } });
+      shareLink({ title: 'Convite para a família', link: x.link, text: x.text, phone: x.phone, qr: x.qr,
+        note: 'Vale 7 dias e uma vez só. A ficha da criança nasce quando a família aceitar.' })
+        .el.addEventListener('close', () => onDone && onDone());
+    } }],
+  });
+  return d;
 }
 
 export function nav(hash) { location.hash = hash; }

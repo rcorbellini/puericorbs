@@ -4,6 +4,15 @@
 
 ## Tomadas
 
+### 29/10/2026 — o convite da família pré-preenchido
+
+40. **O convite da família pode chegar pré-preenchido.** Pedido do dono: "o invite do paciente pode ser pré-preenchido
+    antes de enviar; o paciente não precisa preencher, ou preenche só o que falta". A pediatra ou a recepção escreve o
+    que já sabe (o responsável e a criança, tudo opcional), e a família confere e completa no celular; a ficha nasce no
+    aceite. O que foi escrito fica no banco da prática (`invite_prefill`), nunca no da plataforma, que não guarda dado de
+    família, e o convite da família deixa de guardar o nome do responsável. Quem já tem conta liga a criança nova com a
+    própria senha, na mesma família (o irmão).
+
 ### 29/10/2026 — o consultório com várias pediatras
 
 35. **O consultório pode ter várias pediatras, e cada uma só vê os pacientes dela.** Pedido do dono: "um consultório

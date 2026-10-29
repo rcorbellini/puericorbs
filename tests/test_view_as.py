@@ -239,6 +239,7 @@ def test_migracao_mantem_a_sessao_e_o_registro(tmp_path):
     for col in ("end_day", "created_by", "created_at"):  # o que a versão 3 trouxe (test_schedule.py)
         conn.execute(f"ALTER TABLE schedule_exceptions DROP COLUMN {col}")
     conn.execute("ALTER TABLE appointments DROP COLUMN confirm_asked_at")
+    conn.execute("DROP TABLE invite_prefill")  # a versão 4 (test_invites.py)
     conn.execute("PRAGMA user_version = 1")
     conn.close()
     conn = connect_practice(s.data_dir, 1)

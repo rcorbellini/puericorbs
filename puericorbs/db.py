@@ -81,8 +81,8 @@ CREATE TABLE clinic_members (
 );
 """ + """
 -- o convite (invites.py): da equipe de um consultório (staff: pediatra, atendente ou administração do consultório), do
--- responsável de uma família (family, que pode chegar pré-preenchido), da pediatra que cria o próprio consultório
--- (practice) e da administração da plataforma (admin)
+-- responsável de uma família (family; o que a recepção já sabia da família nova fica no banco da prática, em
+-- invite_prefill), da pediatra que cria o próprio consultório (practice) e da administração da plataforma (admin)
 CREATE TABLE invites (
   id INTEGER PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
@@ -98,8 +98,7 @@ CREATE TABLE invites (
   used_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   revoked_at TEXT,
   new_practice_id INTEGER REFERENCES practices(id) ON DELETE SET NULL,
-  clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE,
-  prefill TEXT
+  clinic_id INTEGER REFERENCES clinics(id) ON DELETE CASCADE
 );
 -- o que acontece na plataforma (convites, consultórios, domínios, a administração); nunca dado de paciente
 CREATE TABLE platform_log (
@@ -166,7 +165,8 @@ def _platform_v4(conn: sqlite3.Connection) -> None:
 def _platform_v5(conn: sqlite3.Connection) -> None:
     """O consultório com várias pediatras. Toda prática ganha um consultório (a clínica); a atendente passa a ser do
     consultório; a pediatra de cada consultório sem administração vira a administração dele; e o convite ganha o
-    consultório, o papel de administração e o pré-preenchimento da família."""
+    consultório e o papel de administração. O convite da família deixa de guardar o nome do responsável: dado de
+    família não fica no banco da plataforma."""
     now = now_iso()
     conn.execute(_table(PLATFORM_SCHEMA, "clinic_members"))
     for p in conn.execute("SELECT id, name, created_at FROM practices WHERE clinic_id IS NULL ORDER BY id").fetchall():
@@ -190,12 +190,13 @@ def _platform_v5(conn: sqlite3.Connection) -> None:
     conn.execute(_table(PLATFORM_SCHEMA, "invites"))
     conn.execute(f"INSERT INTO invites ({cols}) SELECT {cols} FROM invites_v4")
     conn.execute("DROP TABLE invites_v4")
+    conn.execute("UPDATE invites SET label = NULL WHERE kind = 'family'")
 
 
 PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4,
                                                                          5: _platform_v5}
 
-PRACTICE_VERSION = 3
+PRACTICE_VERSION = 4
 PRACTICE_SCHEMA = """
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
@@ -425,6 +426,14 @@ CREATE TABLE expenses (
   spent_on TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+-- o convite da família nova, pré-preenchido: o que quem convidou já sabia (o responsável e a criança), à espera do aceite.
+-- Fica aqui, e não no convite (banco da plataforma), porque é dado de família; invite_id é o id do convite lá
+CREATE TABLE invite_prefill (
+  invite_id INTEGER PRIMARY KEY,
+  data TEXT NOT NULL,
+  created_by INTEGER,
+  created_at TEXT NOT NULL
+);
 -- quem viu e fez o quê; actor_id é quem estava de fato, quando a administração entra vendo como alguém (user_id)
 CREATE TABLE audit_log (
   id INTEGER PRIMARY KEY,
@@ -454,7 +463,12 @@ def _practice_v3(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE appointments ADD COLUMN confirm_asked_at TEXT")
 
 
-PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2, 3: _practice_v3}
+def _practice_v4(conn: sqlite3.Connection) -> None:
+    """O convite da família pré-preenchido: o que a recepção já sabia fica no banco da prática."""
+    conn.execute(_table(PRACTICE_SCHEMA, "invite_prefill"))
+
+
+PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2, 3: _practice_v3, 4: _practice_v4}
 
 
 def now_iso(tz=None) -> str:

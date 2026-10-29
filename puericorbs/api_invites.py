@@ -7,7 +7,9 @@ dela. O convite cria a senha de quem ainda não tem conta; nunca escolhe a senha
 
 from __future__ import annotations
 
+import json
 import re
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -50,6 +52,13 @@ def _open(ctx: Ctx, token: str) -> dict:
     return row
 
 
+def _prefill(ctx: Ctx, row: dict) -> dict:
+    """O que quem convidou a família nova já sabia (no banco da prática): o responsável e a criança."""
+    found = one(ctx.open_practice(row["practice_id"]), "SELECT data FROM invite_prefill WHERE invite_id = ?", (row["id"],))
+    data = json.loads(found["data"]) if found else {}
+    return {"guardian": data.get("guardian") or {}, "child": data.get("child") or {}}
+
+
 def _guardian(ctx: Ctx, row: dict) -> dict:
     """O responsável no banco do consultório do convite (o id só vale dentro dele)."""
     g = one(ctx.open_practice(row["practice_id"]), "SELECT * FROM guardians WHERE id = ?", (row["guardian_id"],))
@@ -86,6 +95,8 @@ def invite_info(token: str, ctx: Ctx = Depends(dep)):
         others = clinics.practices(ctx.pconn, invites.clinic_of(ctx.pconn, row))
         out.update(role=row["role"], role_label=invites.ROLE_LABEL[row["role"]], clinic=clinic["name"] if clinic else None,
                    doctors=[p["name"] for p in others], label=row["label"])
+    elif row["kind"] == "family" and not row["guardian_id"]:
+        out["prefill"] = _prefill(ctx, row)
     elif row["kind"] == "family":
         g = _guardian(ctx, row)
         user = one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (g["user_id"],)) if g["user_id"] else None
@@ -106,6 +117,13 @@ class InviteAccept(BaseModel):
     clinic_name: str | None = None
     registry: str | None = None
     domain: str | None = None
+    # a família nova (o convite pré-preenchido): o responsável e a criança
+    relation: str | None = None
+    phone: str | None = None
+    child_name: str | None = None
+    child_sex: str | None = None
+    child_birth: str | None = None
+    child_weeks: int | None = None
 
 
 def _email(text: str | None) -> str:
@@ -182,7 +200,61 @@ def _accept_staff(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
     return {"login": uid}
 
 
+RELATIONS = ("mãe", "pai", "avó", "avô", "responsável")
+
+
+def _child(name: str | None, sex: str | None, birth: str | None, weeks: int | None, today: date) -> dict:
+    """A criança como a família (ou a recepção) escreveu, conferida."""
+    name = " ".join((name or "").split())[:80]
+    if not name:
+        raise HTTPException(400, "Escreva o nome da criança.")
+    if sex not in ("F", "M"):
+        raise HTTPException(400, "Escolha menina ou menino: as curvas de crescimento da OMS são separadas.")
+    try:
+        born = date.fromisoformat(birth or "")
+    except ValueError as exc:
+        raise HTTPException(400, "Confira a data de nascimento da criança.") from exc
+    if born > today or (today - born).days > 18 * 366:
+        raise HTTPException(400, "Confira a data de nascimento da criança.")
+    if weeks is not None and not 22 <= weeks <= 42:
+        raise HTTPException(400, "As semanas de gestação vão de 22 a 42 (deixe em branco se nasceu no tempo certo).")
+    return {"name": name, "sex": sex, "birth_date": born.isoformat(), "gestational_weeks": weeks}
+
+
+def _accept_new_family(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
+    """A família nova: o responsável confere o que a recepção escreveu, completa o resto e cria a senha. A ficha nasce
+    agora, no banco da prática. Quem já é responsável nesta prática (outro filho) ganha a criança na mesma família."""
+    name, email = _name(body.name), _email(body.email)
+    _new_password(body.password)
+    relation = body.relation if body.relation in RELATIONS else "responsável"
+    phone = (body.phone or "").strip()[:40]
+    if len(re.sub(r"\D", "", phone)) < 10:
+        raise HTTPException(400, "Escreva o celular com o DDD: é por ele que o consultório fala com você.")
+    child = _child(body.child_name, body.child_sex, body.child_birth, body.child_weeks, ctx.today)
+    uid = _account_for(ctx, email, name, body.password)
+    _spend(ctx, row, uid)
+    conn = ctx.open_practice(row["practice_id"])
+    with transaction(conn):
+        mine = one(conn, "SELECT * FROM guardians WHERE user_id = ? ORDER BY id LIMIT 1", (uid,))
+        if mine:
+            fid, gid = mine["family_id"], mine["id"]
+        else:
+            surname = child["name"].split()[-1] if len(child["name"].split()) > 1 else name.split()[-1]
+            fid = insert(conn, "families", {"name": f"Família {surname}", "created_at": now_iso()})
+            gid = insert(conn, "guardians", {"family_id": fid, "user_id": uid, "name": name, "relation": relation,
+                                             "phone": phone, "email": email, "is_legal": 1, "is_financial": 1,
+                                             "created_at": now_iso()})
+        pid = insert(conn, "patients", {"family_id": fid, **child, "created_at": now_iso()})
+        conn.execute("DELETE FROM invite_prefill WHERE invite_id = ?", (row["id"],))
+        insert(conn, "audit_log", {"at": now_iso(), "user_id": uid, "role": "guardian", "action": "familia_cadastrou",
+                                   "entity": "patient", "entity_id": pid, "ip": ctx.ip})
+    invites.log(ctx.pconn, "convite_aceito", user_id=uid, practice_id=row["practice_id"], detail="família nova", ip=ctx.ip)
+    return {"login": uid}
+
+
 def _accept_family(ctx: Ctx, row: dict, body: InviteAccept) -> dict:
+    if not row["guardian_id"]:
+        return _accept_new_family(ctx, row, body)
     g = _guardian(ctx, row)
     _new_password(body.password)
     user = one(ctx.pconn, "SELECT * FROM users WHERE id = ?", (g["user_id"],)) if g["user_id"] else None
@@ -313,6 +385,8 @@ def staff_revoke(invite_id: int, ctx: Ctx = Depends(dep)):
     if not row:
         raise HTTPException(404, "Convite não encontrado.")
     invites.revoke(ctx.pconn, invite_id)
+    if row["kind"] == "family" and not row["guardian_id"]:  # o que a recepção escreveu da família nova vai junto
+        ctx.open_practice(row["practice_id"]).execute("DELETE FROM invite_prefill WHERE invite_id = ?", (invite_id,))
     invites.log(ctx.pconn, "convite_cancelado", user_id=ctx.user["id"], practice_id=ctx.practice_id,
                 detail=invites.LABEL[row["kind"]], ip=ctx.ip)
     return {"ok": True}
@@ -341,6 +415,73 @@ def remove_member(user_id: int, ctx: Ctx = Depends(dep)):
 
 # ---- a pediatra e a recepção: o acesso da família ------------------------------------------------------------------
 
+class FamilyInvite(BaseModel):
+    """O que quem convida já sabe da família nova; tudo opcional: a família completa o resto."""
+    practice_id: int | None = None
+    name: str | None = None
+    relation: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    child_name: str | None = None
+    child_sex: str | None = None
+    child_birth: str | None = None
+
+
+def _clean_prefill(body: FamilyInvite, today: date) -> dict:
+    g = {"name": " ".join((body.name or "").split())[:80], "relation": body.relation if body.relation in RELATIONS else "",
+         "phone": (body.phone or "").strip()[:40], "email": (body.email or "").strip().lower()[:120]}
+    if g["email"] and not EMAIL.match(g["email"]):
+        raise HTTPException(400, "Confira o e-mail do responsável (ou deixe em branco: a família escreve).")
+    c = {"name": " ".join((body.child_name or "").split())[:80], "sex": body.child_sex if body.child_sex in ("F", "M") else "",
+         "birth_date": ""}
+    if body.child_birth:
+        try:
+            born = date.fromisoformat(body.child_birth)
+        except ValueError as exc:
+            raise HTTPException(400, "Confira a data de nascimento (ou deixe em branco: a família escreve).") from exc
+        if born > today:
+            raise HTTPException(400, "A data de nascimento está no futuro.")
+        c["birth_date"] = born.isoformat()
+    return {"guardian": {k: v for k, v in g.items() if v}, "child": {k: v for k, v in c.items() if v}}
+
+
+@router.post("/staff/family-invites")
+def family_invite(body: FamilyInvite, request: Request, ctx: Ctx = Depends(dep)):
+    """O convite de uma família que ainda não está no cadastro. Quem convida escreve o que já sabe (pode ser nada), e
+    a família confere e completa no próprio celular; a ficha nasce no aceite. O que foi escrito fica no banco da
+    prática; no da plataforma, só o convite, sem nome."""
+    practice, conn = _practice(ctx, body.practice_id)
+    data = _clean_prefill(body, ctx.today)
+    with transaction(ctx.pconn):
+        token, iid = invites.create(ctx.pconn, kind="family", practice_id=practice["id"], created_by=ctx.user["id"])
+    insert(conn, "invite_prefill", {"invite_id": iid, "data": json.dumps(data, ensure_ascii=False),
+                                    "created_by": ctx.user["id"], "created_at": now_iso()})
+    ctx.audit("convite_familia_nova", "invite", iid, conn=conn)
+    link = request_link(request, token) if practice["id"] == ctx.practice_id else invites.link(
+        ctx.pconn, practice, token, ctx.settings.base_domains, ctx.settings.port)
+    first = (data["guardian"].get("name") or "").split()
+    hi = f"Olá, {first[0]}!" if first else "Olá!"
+    text = (f"{hi} Este é o convite para o app de {practice['name']}: lá você acompanha a saúde e a agenda da criança, "
+            f"marca consultas e manda exames. Confira os dados, complete o que faltar e crie a sua senha por este link "
+            f"(vale 7 dias): {link}")
+    return {"link": link, "text": text, "phone": data["guardian"].get("phone"),
+            "invite": invites.view(one(ctx.pconn, "SELECT * FROM invites WHERE id = ?", (iid,)))}
+
+
+@router.get("/staff/family-invites")
+def family_invites(practice_id: int | None = None, ctx: Ctx = Depends(dep)):
+    """Os convites de família nova ainda à espera, desta pediatra: para lembrar quem não respondeu, ou cancelar."""
+    practice, conn = _practice(ctx, practice_id)
+    out = []
+    for r in many(conn, "SELECT * FROM invite_prefill ORDER BY created_at DESC"):
+        inv = one(ctx.pconn, "SELECT * FROM invites WHERE id = ? AND kind = 'family' AND practice_id = ?",
+                  (r["invite_id"], practice["id"]))
+        if inv and invites.status(inv) == "pendente":
+            data = json.loads(r["data"])
+            out.append({"id": inv["id"], "expires_at": inv["expires_at"], "created_at": inv["created_at"],
+                        "guardian": data.get("guardian") or {}, "child": data.get("child") or {}})
+    return {"invites": out}
+
 @router.post("/staff/guardians/{guardian_id}/invite")
 def guardian_invite(guardian_id: int, request: Request, practice_id: int | None = None, ctx: Ctx = Depends(dep)):
     """O link para o responsável criar a senha do app. Um link por vez: o novo cancela o anterior."""
@@ -352,7 +493,7 @@ def guardian_invite(guardian_id: int, request: Request, practice_id: int | None 
         ctx.pconn.execute("""UPDATE invites SET revoked_at = ? WHERE kind = 'family' AND practice_id = ? AND guardian_id = ?
                              AND used_at IS NULL AND revoked_at IS NULL""", (now_iso(), practice["id"], g["id"]))
         token, iid = invites.create(ctx.pconn, kind="family", practice_id=practice["id"], guardian_id=g["id"],
-                                    label=g["name"], created_by=ctx.user["id"])
+                                    created_by=ctx.user["id"])
     insert(conn, "audit_log", {"at": now_iso(), "user_id": ctx.user["id"], "role": practice["role"],
                                "action": "convite_familia", "entity": "guardian", "entity_id": g["id"], "ip": ctx.ip})
     # o link abre no domínio do consultório da família (a atendente pode estar no site de outro pediatra da clínica)

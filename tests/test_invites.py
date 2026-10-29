@@ -10,7 +10,7 @@ from conftest import H, client, outro_consultorio
 from fastapi.testclient import TestClient
 
 from puericorbs import config, invites
-from puericorbs.db import PLATFORM_VERSION, connect_platform, connect_practice, one
+from puericorbs.db import PLATFORM_VERSION, PRACTICE_VERSION, connect_platform, connect_practice, many, one
 from puericorbs.server import create_app
 
 
@@ -232,3 +232,96 @@ def test_cadastro_com_email_de_outra_familia_nao_entrega_a_conta(fresh):
     r = site.post(f"/api/invite/{token}", json={"email": "ana@demo.test", "password": "tomei-a-conta"}, headers=H)
     assert r.status_code == 409
     entra(fresh, "dramarina.localhost", "ana@demo.test", "demo1234")
+
+
+def convite_familia(c: TestClient, **body) -> dict:
+    r = c.post("/api/staff/family-invites", json=body, headers=H)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_convite_da_familia_nova_chega_pre_preenchido_e_a_familia_completa(fresh):
+    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
+    x = convite_familia(carla, practice_id=1, name="Rita Prado", relation="mãe", phone="(11) 95555-2000",
+                        child_name="Davi Prado", child_sex="M")
+    assert x["phone"] == "(11) 95555-2000" and x["text"].startswith("Olá, Rita!") and x["link"] in x["text"]
+    # o que a recepção escreveu fica no banco da pediatra; no da plataforma, só o convite, sem nome
+    pconn = connect_platform(fresh.data_dir)
+    plataforma = repr(many(pconn, "SELECT * FROM invites")) + repr(many(pconn, "SELECT * FROM platform_log"))
+    assert "Rita" not in plataforma and "Davi" not in plataforma
+    conn = connect_practice(fresh.data_dir, 1)
+    assert "Davi Prado" in one(conn, "SELECT data FROM invite_prefill")["data"]
+    esperando = carla.get("/api/staff/family-invites?practice_id=1").json()["invites"]
+    assert [(i["guardian"]["name"], i["child"]["name"]) for i in esperando] == [("Rita Prado", "Davi Prado")]
+    # a família abre: vem o que a recepção sabia; o resto ela completa
+    token = token_of(x["link"])
+    rita = TestClient(create_app(fresh), base_url="http://dramarina.localhost")
+    info = rita.get(f"/api/invite/{token}").json()
+    assert info["kind"] == "family" and info["prefill"]["guardian"]["name"] == "Rita Prado"
+    assert info["prefill"]["child"] == {"name": "Davi Prado", "sex": "M"}
+    body = {"name": "Rita Prado", "relation": "mãe", "phone": "(11) 95555-2000", "email": "rita@exemplo.test",
+            "password": "senha-da-rita", "child_name": "Davi Prado", "child_sex": "M"}
+    r = rita.post(f"/api/invite/{token}", json=body, headers=H)
+    assert r.status_code == 400 and "nascimento" in r.json()["detail"]
+    r = rita.post(f"/api/invite/{token}", json={**body, "child_birth": "2026-02-01", "phone": "95555"}, headers=H)
+    assert r.status_code == 400 and "DDD" in r.json()["detail"]  # o consultório precisa do celular inteiro
+    for nascimento in ("2099-01-01", "1990-01-01"):  # no futuro, ou adulto
+        r = rita.post(f"/api/invite/{token}", json={**body, "child_birth": nascimento}, headers=H)
+        assert r.status_code == 400 and "nascimento" in r.json()["detail"], nascimento
+    r = rita.post(f"/api/invite/{token}", json={**body, "child_birth": "2026-02-01", "child_weeks": 35}, headers=H)
+    assert r.status_code == 200, r.text
+    home = rita.get("/api/family/home").json()
+    assert [k["name"] for k in home["children"]] == ["Davi Prado"] and home["guardian"] == "Rita Prado"
+    davi = one(conn, "SELECT * FROM patients WHERE name = 'Davi Prado'")
+    assert (davi["sex"], davi["birth_date"], davi["gestational_weeks"]) == ("M", "2026-02-01", 35)
+    assert one(conn, "SELECT phone FROM guardians WHERE name = 'Rita Prado'")["phone"] == "(11) 95555-2000"
+    # o que foi escrito no convite some quando vira ficha, e o link não abre de novo
+    assert not one(conn, "SELECT * FROM invite_prefill")
+    assert carla.get("/api/staff/family-invites?practice_id=1").json()["invites"] == []
+    assert rita.get(f"/api/invite/{token}").status_code == 404
+
+
+def test_quem_ja_e_da_familia_ganha_o_filho_novo_com_a_propria_senha(fresh):
+    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
+    x = convite_familia(marina, name="Ana Costa", child_name="Lia Costa", child_sex="F", child_birth="2026-09-01")
+    token = token_of(x["link"])
+    ana = TestClient(create_app(fresh), base_url="http://dramarina.localhost")
+    body = {"name": "Ana Costa", "relation": "mãe", "phone": "(11) 90000-0001", "email": "ana@demo.test",
+            "password": "outra-senha-qualquer", "child_name": "Lia Costa", "child_sex": "F", "child_birth": "2026-09-01"}
+    r = ana.post(f"/api/invite/{token}", json=body, headers=H)
+    assert r.status_code == 409  # a conta já existe: só com a senha dela
+    assert ana.post(f"/api/invite/{token}", json={**body, "password": "demo1234"}, headers=H).status_code == 200
+    assert {k["name"] for k in ana.get("/api/family/home").json()["children"]} == {"Helena Costa", "Theo Costa", "Lia Costa"}
+    conn = connect_practice(fresh.data_dir, 1)
+    assert one(conn, "SELECT COUNT(*) AS n FROM guardians WHERE user_id = (SELECT user_id FROM guardians WHERE name = 'Ana Costa')")["n"] == 1
+
+
+def test_convite_da_familia_nova_so_da_equipe_e_so_no_consultorio(fresh):
+    outro_consultorio(fresh)
+    ana = client(fresh, "dramarina.localhost", "ana@demo.test")
+    assert ana.post("/api/staff/family-invites", json={}, headers=H).status_code == 403
+    paulo = client(fresh, "drpauloreis.localhost", "paulo@demo.test")
+    assert paulo.post("/api/staff/family-invites", json={"practice_id": 1}, headers=H).status_code == 404
+    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
+    assert carla.post("/api/staff/family-invites", json={"child_sex": "X", "email": "nao-e-email"}, headers=H).status_code == 400
+    x = convite_familia(carla, practice_id=2, name="Nara Lins")  # a recepção do consultório convida para o Paulo
+    token = token_of(x["link"])
+    assert TestClient(create_app(fresh), base_url="http://draoutra.localhost").get(f"/api/invite/{token}").status_code == 404
+    assert TestClient(create_app(fresh), base_url="http://dramarina.localhost").get(f"/api/invite/{token}").json()["practice"]["name"] == "Dr. Paulo Reis"
+    # cancelar apaga o que foi escrito da família
+    iid = carla.get("/api/staff/family-invites?practice_id=2").json()["invites"][0]["id"]
+    assert carla.post(f"/api/staff/invites/{iid}/revoke", headers=H).status_code == 200
+    assert not one(connect_practice(fresh.data_dir, 2), "SELECT * FROM invite_prefill")
+    assert TestClient(create_app(fresh), base_url="http://drpauloreis.localhost").get(f"/api/invite/{token}").status_code == 404
+
+
+def test_migracao_do_convite_pre_preenchido(tmp_path):
+    s = config.load(tmp_path)
+    conn = connect_practice(s.data_dir, 1)
+    conn.execute("DROP TABLE invite_prefill")
+    conn.execute("PRAGMA user_version = 3")
+    conn.close()
+    conn = connect_practice(s.data_dir, 1)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == PRACTICE_VERSION
+    assert one(conn, "SELECT name FROM sqlite_master WHERE name = 'invite_prefill'")
+

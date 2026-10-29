@@ -7,7 +7,8 @@ Quatro tipos:
   dela (`clinician`), a atendente de todas as pediatras (`receptionist`) ou mais alguém da administração (`manager`). O
   convite de pediatra com `practice_id` é o da plataforma para um consultório criado vazio;
 - `family`: um responsável, pela pediatra ou pela recepção. Ou de quem já está na ficha (`guardian_id`), que só cria
-  a senha, ou de uma família nova (`prefill`): quem convida escreve o que sabe, e a família completa o resto;
+  a senha, ou de uma família nova: quem convida escreve o que sabe (no banco da prática, `invite_prefill`), e a
+  família completa o resto. O convite da família não leva nome nenhum para o banco da plataforma;
 - `admin`: alguém da administração da plataforma.
 
 O de equipe e o de família abrem em qualquer domínio do consultório deles; o de consultório próprio e o de
@@ -17,7 +18,6 @@ ninguém, e o banco guarda só o hash do token, como nas sessões.
 
 from __future__ import annotations
 
-import json
 import secrets
 import sqlite3
 from datetime import datetime, timedelta
@@ -34,7 +34,7 @@ ROLE_LABEL = {"clinician": "Pediatra", "receptionist": "Atendente", "manager": "
 
 def create(pconn: sqlite3.Connection, *, kind: str = "staff", practice_id: int | None = None, role: str | None = None,
            guardian_id: int | None = None, label: str | None = None, created_by: int | None = None,
-           days: int = 7, clinic_id: int | None = None, prefill: dict | None = None) -> tuple[str, int]:
+           days: int = 7, clinic_id: int | None = None) -> tuple[str, int]:
     """O token (que só aparece agora, no link) e o id do convite."""
     if kind not in KINDS:
         raise ValueError(f"tipo de convite desconhecido: {kind}")
@@ -51,10 +51,9 @@ def create(pconn: sqlite3.Connection, *, kind: str = "staff", practice_id: int |
     invite_id = insert(pconn, "invites", {
         "token_hash": token_hash(token), "kind": kind, "practice_id": practice_id,
         "role": role if kind == "staff" else None, "guardian_id": guardian_id if kind == "family" else None,
-        "label": (label or "").strip()[:80] or None, "created_by": created_by,
+        "label": None if kind == "family" else (label or "").strip()[:80] or None, "created_by": created_by,
         "created_at": now.isoformat(), "expires_at": (now + timedelta(days=days)).isoformat(),
-        "clinic_id": clinic_id if kind == "staff" else None,
-        "prefill": json.dumps(prefill, ensure_ascii=False) if kind == "family" and prefill else None})
+        "clinic_id": clinic_id if kind == "staff" else None})
     return token, invite_id
 
 
