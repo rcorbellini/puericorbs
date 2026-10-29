@@ -102,6 +102,49 @@ Isso diminui as faltas.
 - **A mensalidade do Puericorbs (a pediatra pagando a plataforma):** pode ser pela conta da AbacatePay da própria
   plataforma, com o CNPJ dela.
 
+## A nota fiscal e o recibo da família
+
+Pergunta do dono (29/10/2026): o médico ou o consultório precisa de CNPJ, e o sistema consegue fazer a nota para mandar
+à família?
+
+- **CNPJ não é obrigatório.** A pediatra pode atender como pessoa física: profissional liberal, com o CRM, a inscrição
+  na prefeitura e o imposto pelo carnê-leão. MEI não pode, porque medicina não está na lista. Com CNPJ, a empresa é uma
+  SLU ou uma sociedade simples, e também se registra no CRM. Costuma pagar menos imposto a partir de certa renda; essa
+  conta é do contador.
+- **No consultório compartilhado:** cada pediatra fatura no próprio nome, como pessoa física ou com o CNPJ dela. O
+  consultório só precisa de CNPJ se as pediatras montarem uma empresa juntas.
+- **O documento que a família recebe depende disso:**
+  - **Pessoa física:** não existe nota fiscal. O documento é o recibo do **Receita Saúde**, obrigatório desde
+    1º/01/2025 (IN RFB 2.240/2024). A pediatra emite no app Receita Saúde ou no e-CAC, com a conta gov.br dela, e o
+    recibo vai sozinho para a declaração de IR da família. **Não há API oficial**, então o Puericorbs não emite sozinho.
+    O que dá para fazer:
+    1. o sistema monta a lista "Recibos a emitir", com cada dado pronto para copiar (CPF de quem pagou, CPF da criança,
+       valor, data e serviço);
+    2. a pediatra emite no app;
+    3. o PDF anexado chega à família pelo app e pelo WhatsApp.
+
+    Há fornecedor que diz ter uma API para o Receita Saúde, mas não é da Receita: não vale pôr a conta gov.br da
+    pediatra nas mãos de terceiros.
+  - **Com CNPJ:** a nota fiscal de serviço eletrônica (NFS-e), e **o sistema consegue emitir sozinho**: ao receber, o
+    Puericorbs emite a nota e manda o PDF para a família (no app e no WhatsApp). Há dois caminhos:
+    1. **Direto pela NFS-e Nacional.** Desde 1º/01/2026 todo município aderiu ao padrão nacional (LC 214/2025). As
+       empresas do Simples Nacional emitem pelo Emissor Nacional a partir de 1º/11/2026 (Resolução CGSN 191/2026). A
+       API é do governo e não cobra por nota. Ela pede o certificado digital da empresa (A1), o XML assinado e a conexão
+       com o certificado.
+    2. **Por um provedor** (Focus NFe, NFE.io e outros): uma API só para todas as prefeituras, inclusive as que ainda
+       exigem o sistema próprio. Isso é comum para quem está no Lucro Presumido em cidades grandes. O provedor cobra por
+       nota ou por mês.
+- **O que o Puericorbs já tem e o que falta.**
+  - **Já tem:**
+    - a fila "Notas a emitir" na recepção;
+    - o anexo de nota e de recibo, que a família vê no app;
+    - em cada serviço, o código da nota (04.01, medicina) e a chave "emitir sozinha".
+  - **Falta:**
+    - o CPF da criança (hoje só o responsável tem CPF);
+    - os dados fiscais da pediatra: CNPJ, inscrição municipal, regime e alíquota do ISS;
+    - o certificado digital, no caso do CNPJ.
+- **E a AbacatePay:** só recebe com CNPJ. A pediatra pessoa física precisa de um gateway que aceite CPF.
+
 ## Recomendação
 
 1. **Começar pelo PIX na recepção, com a chave de teste.** Dá para construir e testar tudo sem dinheiro de verdade,
@@ -112,7 +155,8 @@ Isso diminui as faltas.
 
 ## Para decidir
 
-- **CNPJ da Dra. Karita:** ela atende com CNPJ? Sem CNPJ, a AbacatePay não serve para ela.
+- **CNPJ da Dra. Karita:** ela atende como pessoa física ou com CNPJ? Com CNPJ, ela está no Simples Nacional, e em
+  qual cidade? Isso decide o recibo (Receita Saúde) ou a nota (NFS-e Nacional ou provedor), e se a AbacatePay serve.
 - **Por onde começar:** o PIX na recepção (recomendado) ou a mensalidade do plano?
 - **A taxa:** quem paga, o consultório (o padrão) ou a família? O checkout de cartão permite repassar a taxa.
 
@@ -130,6 +174,12 @@ Documentação da AbacatePay, lida em 29/10/2026:
 - [ambiente de teste](https://docs.abacatepay.com/pages/devmode.md);
 - [produção](https://docs.abacatepay.com/pages/production.md);
 - [perguntas frequentes](https://docs.abacatepay.com/pages/faq/index.md).
+
+Nota fiscal e recibo:
+- [CFM: médicos devem emitir recibos pelo Receita Saúde desde 1º de janeiro (de 2025)](https://portal.cfm.org.br/noticias/desde-1o-de-janeiro-medicos-devem-emitir-recibos-fiscais-pelo-receita-saude/);
+- [NFS-e Nacional, manual da API do contribuinte (gov.br/nfse)](https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/manual-contribuintes-emissor-publico-api-sistema-nacional-nfs-e-v1-2-out2025.pdf/@@download/file);
+- [Conta Azul: prazos da NFS-e padrão nacional e a CGSN 191/2026](https://contaazul.com/blog/nfse-padrao-nacional/);
+- [Contabilizei: médico pode ser MEI?](https://www.contabilizei.com.br/contabilidade-online/medico-pode-ser-mei/).
 
 Taxas, de fontes de terceiros sem data:
 - [discussão no GitHub do Pix](https://github.com/bacen/pix-api/discussions/266);

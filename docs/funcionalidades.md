@@ -187,7 +187,9 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 
 - `M1` Recebimento por atendimento: forma (PIX, cartão, dinheiro, plano, cortesia), parcelas, desconto, quem recebeu.
 - `M1` Caixa da recepção: abrir, fechar e conferir o dia.
-- `M1` Recibo. `M2` Nota fiscal de serviço (NFS-e) automática, por um provedor, para quem atende como PJ.
+- `M1` Recibo. `M2` Nota fiscal de serviço (NFS-e) automática para quem atende como PJ: direto pela API da NFS-e
+  Nacional (o Simples emite por ela desde 1º/11/2026) ou por um provedor, nas prefeituras que ainda exigem o sistema
+  próprio (`pagamentos.md`).
 - `M2` **Receita Saúde** para quem atende como pessoa física (obrigatório desde 2025): o Puericorbs prepara os dados e
   lembra de emitir; integração direta se a Receita abrir uma API.
 - `M2` **Kit reembolso:** a nota ou o recibo no CPF de quem pagou, com o nome da criança, CRM e RQE, data e serviço e,
