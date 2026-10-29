@@ -94,3 +94,25 @@ def test_cada_pratica_tem_o_proprio_banco(settings):
     assert (practice_dir(settings.data_dir, 1) / "practice.db").exists()
     assert (practice_dir(settings.data_dir, 2) / "practice.db").exists()
     assert config.load(settings.data_dir).data_dir == settings.data_dir
+
+
+def test_horarios_e_agenda_fechada_so_do_proprio_consultorio(fresh):
+    """A agenda fechada devolve quem estava marcado (nome e telefone da família): o Paulo nunca abre a da Marina."""
+    from datetime import date, timedelta
+    amanha = (date.today() + timedelta(days=1)).isoformat()
+    paulo = client(fresh, "drpauloreis.localhost", "paulo@demo.test")
+    assert paulo.get("/api/staff/schedule?practice_id=1").status_code == 404
+    assert paulo.put("/api/staff/schedule", json={"periods": [], "practice_id": 1}, headers=H).status_code == 404
+    assert paulo.post("/api/staff/closures", json={"start": amanha, "practice_id": 1}, headers=H).status_code == 404
+    marina = client(fresh, "dramarina.localhost", "marina@demo.test")
+    cid = marina.post("/api/staff/closures", json={"start": amanha}, headers=H).json()["id"]
+    assert paulo.delete(f"/api/staff/closures/{cid}?practice_id=1", headers=H).status_code == 404
+    appt = marina.get(f"/api/staff/agenda?date={amanha}").json()["columns"][0]["appointments"][0]["id"]
+    assert paulo.post(f"/api/staff/appointments/{appt}/asked", json={"practice_id": 1}, headers=H).status_code == 404
+    # no consultório dele, o mesmo número é outro agendamento (ou nenhum): nada da Marina vaza
+    assert all(a["patient"]["name"] != "Helena Costa"
+               for c in paulo.get(f"/api/staff/agenda?date={amanha}").json()["columns"] for a in c["appointments"])
+    # a Carla atende os dois e fecha a agenda do Paulo pelo site da Marina
+    carla = client(fresh, "dramarina.localhost", "carla@demo.test")
+    assert carla.post("/api/staff/closures", json={"start": amanha, "practice_id": 2}, headers=H).status_code == 200
+    assert paulo.get("/api/staff/schedule").json()["closures"][0]["start"] == amanha

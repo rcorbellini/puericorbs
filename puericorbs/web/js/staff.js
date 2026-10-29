@@ -4,6 +4,7 @@ import { html, icon, initials, fail } from './lib.js';
 import * as day from './staff-day.js';
 import * as people from './staff-patients.js';
 import * as admin from './staff-admin.js';
+import * as schedule from './staff-schedule.js';
 
 const CLINICIAN = [
   ['hoje', 'Hoje', 'sun'], ['agenda', 'Agenda', 'calendar'], ['pacientes', 'Pacientes', 'users'], ['revisar', 'Revisar', 'inbox'],
@@ -12,7 +13,7 @@ const CLINICIAN = [
 ];
 const RECEPTION = [['recepcao', 'Recepção', 'home'], ['agenda', 'Agenda', 'calendar'], ['pacientes', 'Famílias', 'users'], ['planos', 'Planos', 'repeat']];
 const VIEWS = {
-  hoje: day.today, agenda: day.agenda, recepcao: day.reception,
+  hoje: day.today, agenda: day.agenda, horarios: schedule.hours, recepcao: day.reception,
   pacientes: people.patients, paciente: people.patient, consulta: people.encounter, revisar: people.review,
   servicos: admin.services, planos: admin.plans, financeiro: admin.finance, consultorio: admin.practice,
 };
@@ -81,7 +82,7 @@ export async function route(app, opts = {}) {
     if (name && name !== home) history.replaceState(null, '', `#/${home}`);
     name = home;
   }
-  const navKey = { paciente: 'pacientes', consulta: app.me.role === 'clinician' ? 'hoje' : 'agenda' }[name] || name;
+  const navKey = { paciente: 'pacientes', horarios: 'agenda', consulta: app.me.role === 'clinician' ? 'hoje' : 'agenda' }[name] || name;
   document.querySelectorAll('[data-nav]').forEach((a) => {
     if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');

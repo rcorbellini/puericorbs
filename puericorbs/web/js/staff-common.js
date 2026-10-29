@@ -1,6 +1,7 @@
 // O que as telas da equipe dividem: o diálogo do agendamento (mudar o estado, começar a consulta, receber), marcar
-// consulta e cadastrar família.
-import { api, html, raw, icon, dialog, toast, fail, money, dateLong, dateBR, statusPill, initials, centsInput, toCents, debounce, isoDate } from './lib.js';
+// consulta, cadastrar família e chamar a família no WhatsApp com a mensagem pronta.
+import { api, html, raw, icon, dialog, toast, fail, money, dateLong, dateBR, statusPill, initials, centsInput, toCents, debounce, isoDate,
+  relDay, weekday, firstName, waNumber, waLink } from './lib.js';
 
 export const METHODS = { pix: 'PIX', cartao: 'Cartão', dinheiro: 'Dinheiro' };
 
@@ -14,6 +15,75 @@ export const isClinician = (app) => app.me.role === 'clinician';
 export function practiceRole(app, practiceId) {
   const p = (app.me.practices || []).find((x) => x.id === practiceId);
   return p ? p.role : app.me.role;
+}
+
+// ---- WhatsApp: a mensagem pronta para o responsável; a recepção só confere e aperta enviar ------------------------------
+// O WhatsApp abre no celular ou no computador de quem clica: nada sai do Puericorbs sozinho.
+
+function whenText(a, todayIso) {
+  const rel = relDay(a.date, todayIso);
+  if (rel === 'hoje') return `hoje, às ${a.time}`;
+  if (rel === 'amanhã') return `amanhã (${weekday(a.date)}, ${dateBR(a.date)}), às ${a.time}`;
+  return `${weekday(a.date)}, ${dateBR(a.date)}, às ${a.time}`;
+}
+
+// kind: 'confirmar' (pedir a confirmação) ou 'remarcar' (a agenda fechou ou o horário saiu da grade)
+export function waText(app, a, contact, kind) {
+  const hi = `Olá, ${firstName(contact.name)}! Aqui é do consultório de ${a.practice?.name || app.site.practice.name}.`;
+  const kid = `${a.patient.sex === 'M' ? 'do' : 'da'} ${a.patient.first_name}`;
+  if (kind === 'remarcar') return `${hi} Precisamos remarcar a consulta ${kid} (${a.service}) de ${whenText(a, app.today)}. Qual outro dia fica bom para vocês?`;
+  return `${hi} A consulta ${kid} (${a.service}) está marcada para ${whenText(a, app.today)}. Você confirma? Se precisar remarcar, é só responder aqui.`;
+}
+
+const reachable = (a) => (a.contacts || []).filter((c) => waNumber(c.phone));
+
+// o botão do WhatsApp de um agendamento: um link direto, ou a escolha de quem chamar (mãe, pai…); sem celular, um aviso
+export function waButton(app, a, kind, label) {
+  const people = reachable(a);
+  if (!people.length) return html`<span class="t-small muted">sem celular no cadastro</span>`;
+  const attrs = raw(`data-wa="${a.id}" data-kind="${kind}"`);
+  if (people.length === 1) return html`<a class="btn ghost small" href="${waLink(people[0].phone, waText(app, a, people[0], kind))}" target="_blank" rel="noopener" ${attrs}>${icon('message')}${label}</a>`;
+  return html`<button class="btn ghost small" type="button" ${attrs} data-wa-pick="1">${icon('message')}${label}</button>`;
+}
+
+// liga os botões do WhatsApp de `root`: escolher quem chamar e, no pedido de confirmação, deixar registrado que foi
+// pedido (a lista mostra "pedido às 14:32"). `find(id)` acha o agendamento; `onAsked` redesenha.
+export function bindWhatsApp(root, app, find, onAsked) {
+  const asked = (a, kind) => {
+    if (kind !== 'confirmar') return;
+    api(`/api/staff/appointments/${a.id}/asked`, { method: 'POST', body: { practice_id: a.practice?.id } })
+      .then(() => onAsked && setTimeout(onAsked, 400)).catch(fail);
+  };
+  root.addEventListener('click', (ev) => {
+    const el = ev.target.closest('[data-wa]');
+    if (!el || !root.contains(el)) return;
+    const a = find(Number(el.dataset.wa));
+    const kind = el.dataset.kind;
+    if (!a) return;
+    if (!el.dataset.waPick) { asked(a, kind); return; }  // o link segue para o WhatsApp
+    const d = dialog({
+      title: 'Para quem mandar?',
+      body: html`<div class="opts">${reachable(a).map((c) => html`<a class="opt" href="${waLink(c.phone, waText(app, a, c, kind))}" target="_blank" rel="noopener" data-sent style="min-height:56px;text-decoration:none">
+        ${icon('message')}<span class="grow"><b>${c.name}</b><span class="t-small muted" style="display:block">${c.relation} · ${c.phone}</span></span>${icon('chevR', 'muted')}</a>`)}</div>`,
+    });
+    d.el.addEventListener('click', (e2) => { if (e2.target.closest('[data-sent]')) { asked(a, kind); d.close(); } });
+  });
+}
+
+// as consultas que ficaram para remarcar (a agenda fechou, ou a grade mudou): cada uma com o aviso pronto no WhatsApp
+export function rescheduleDialog(app, title, intro, appts, onDone) {
+  const d = dialog({
+    title,
+    body: html`<p class="muted pretty">${intro}</p>
+      <div>${appts.map((a) => html`<div class="li" style="flex-wrap:wrap"><span class="av sm">${initials(a.patient.name)}</span>
+        <div class="grow" style="min-width:150px"><b style="display:block">${a.patient.name}</b><span class="t-small muted">${dateBR(a.date)} · ${a.time} · ${a.service}</span></div>
+        ${waButton(app, a, 'remarcar', 'Avisar')}</div>`)}</div>
+      <p class="note" style="padding:0">Elas continuam na agenda até você remarcar ou cancelar.</p>`,
+    actions: [{ label: 'Pronto' }],
+  });
+  bindWhatsApp(d.el, app, (id) => appts.find((x) => x.id === id));
+  d.el.addEventListener('close', () => onDone && onDone());
+  return d;
 }
 
 // o diálogo de um agendamento; `onChange` redesenha a tela de trás
@@ -48,7 +118,9 @@ export function openAppointment(app, a, onChange) {
         ${a.kind === 'agudo' ? html`<div class="row"><span class="lbl">Tipo</span><span class="muted">Vaga para criança doente</span></div>` : ''}
         ${a.wait_min != null ? html`<div class="row"><span class="lbl">Na espera</span><span class="muted">há ${a.wait_min} min</span></div>` : ''}
         ${a.practice ? html`<div class="row"><span class="lbl">Pediatra</span><span class="muted">${a.practice.name}</span></div>` : ''}
+        ${a.confirm_asked_at && st === 'agendado' ? html`<div class="row"><span class="lbl">Confirmação</span><span class="muted">pedida ${askedText(a.confirm_asked_at, app.today)}</span></div>` : ''}
       </div>
+      ${st === 'agendado' && a.date >= app.today ? html`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">${waButton(app, a, 'confirmar', 'Pedir confirmação no WhatsApp')}</div>` : ''}
       <div data-receive hidden class="well" style="padding:14px;display:flex;flex-direction:column;gap:10px">
         <div class="seg" role="group" aria-label="Forma de pagamento">${Object.entries(METHODS).map(([k, v], i) => html`<button type="button" data-method="${k}" aria-pressed="${i === 0}">${v}</button>`)}</div>
         <label class="field"><span>R$</span><input data-amount inputmode="decimal" value="${centsInput(a.price_cents)}" aria-label="Valor recebido"></label>
@@ -58,6 +130,7 @@ export function openAppointment(app, a, onChange) {
       <a class="linkbtn" href="#/paciente/${a.patient.id}${pid && pid !== app.site.practice.id ? `?practice=${pid}` : ''}" data-close>Abrir a ficha de ${a.patient.first_name}</a>`,
   });
   const body = d.el;
+  bindWhatsApp(body, app, () => a, onChange);
   const run = async (action) => {
     const r = await api(`/api/staff/appointments/${a.id}/action`, { method: 'POST', body: { action, practice_id: pid } });
     d.close();
@@ -229,6 +302,12 @@ export function newFamily(app, practiceId, onDone) {
       onDone && onDone({ id: r.patient_id, name: v('cname'), first_name: v('cname').split(' ')[0] });
     } }],
   });
+}
+
+// "às 14:32" (hoje) ou "em 27/10, às 14:32"
+export function askedText(iso, todayIso) {
+  const time = iso.slice(11, 16);
+  return iso.slice(0, 10) === todayIso ? `às ${time}` : `em ${dateBR(iso)}, às ${time}`;
 }
 
 export function nav(hash) { location.hash = hash; }

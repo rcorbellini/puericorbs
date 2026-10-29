@@ -16,6 +16,13 @@ def guardians_of(conn: sqlite3.Connection, family_id: int) -> list[dict]:
                       "WHERE family_id = ? ORDER BY id", (family_id,))
 
 
+def contacts(conn: sqlite3.Connection, family_id: int) -> list[dict]:
+    """Os telefones da família, para a recepção chamar no WhatsApp (o responsável legal primeiro)."""
+    return [{"name": g["name"], "relation": g["relation"], "phone": g["phone"]} for g in many(
+        conn, """SELECT name, relation, phone FROM guardians WHERE family_id = ? AND COALESCE(phone, '') != ''
+                 ORDER BY is_legal DESC, id""", (family_id,))]
+
+
 def patient_brief(conn: sqlite3.Connection, row: dict, today: date, *, clinical: bool) -> dict:
     birth = date.fromisoformat(row["birth_date"])
     fam = one(conn, "SELECT name FROM families WHERE id = ?", (row["family_id"],))
@@ -38,9 +45,12 @@ def patient_brief(conn: sqlite3.Connection, row: dict, today: date, *, clinical:
     return out
 
 
-def appointment_row(conn: sqlite3.Connection, row: dict, now: datetime, *, practice: dict | None = None) -> dict:
+def appointment_row(conn: sqlite3.Connection, row: dict, now: datetime, *, practice: dict | None = None,
+                    staff: bool = False) -> dict:
+    """Um agendamento como as telas mostram. Para a equipe (`staff`), com os telefones da família e o pedido de
+    confirmação mandado."""
     svc = one(conn, "SELECT name, kind FROM services WHERE id = ?", (row["service_id"],))
-    pt = one(conn, "SELECT id, name, birth_date, family_id FROM patients WHERE id = ?", (row["patient_id"],))
+    pt = one(conn, "SELECT id, name, sex, birth_date, family_id FROM patients WHERE id = ?", (row["patient_id"],))
     birth = date.fromisoformat(pt["birth_date"])
     wait = None
     if row["status"] == "chegou" and row["arrived_at"]:
@@ -51,10 +61,13 @@ def appointment_row(conn: sqlite3.Connection, row: dict, now: datetime, *, pract
         "kind": row["kind"], "source": row["source"], "service": svc["name"], "service_kind": svc["kind"],
         "service_id": row["service_id"], "covered": bool(row["membership_id"]), "price_cents": row["price_cents"],
         "wait_min": wait, "arrived_at": row["arrived_at"],
-        "patient": {"id": pt["id"], "name": pt["name"], "first_name": pt["name"].split()[0],
+        "patient": {"id": pt["id"], "name": pt["name"], "first_name": pt["name"].split()[0], "sex": pt["sex"],
                     "age_short": care.age_short(birth, now.date()), "family_id": pt["family_id"]},
         "duration_min": minutes(row["end_at"]) - minutes(row["start_at"]),
     }
+    if staff:
+        out["contacts"] = contacts(conn, pt["family_id"])
+        out["confirm_asked_at"] = row.get("confirm_asked_at")
     paid = one(conn, "SELECT id, method, invoice FROM charges WHERE appointment_id = ? AND status = 'paga'", (row["id"],))
     out["paid"] = bool(paid)
     if practice:
@@ -63,12 +76,18 @@ def appointment_row(conn: sqlite3.Connection, row: dict, now: datetime, *, pract
 
 
 def day_appointments(conn: sqlite3.Connection, day: date, now: datetime, *, practice: dict | None = None,
-                     include_cancelled: bool = False) -> list[dict]:
+                     include_cancelled: bool = False, staff: bool = False) -> list[dict]:
     rows = many(conn, "SELECT * FROM appointments WHERE substr(start_at, 1, 10) = ? ORDER BY start_at, id",
                 (day.isoformat(),))
     if not include_cancelled:
         rows = [r for r in rows if r["status"] != "cancelado"]
-    return [appointment_row(conn, r, now, practice=practice) for r in rows]
+    return [appointment_row(conn, r, now, practice=practice, staff=staff) for r in rows]
+
+
+def closure_view(row: dict | None) -> dict | None:
+    if not row:
+        return None
+    return {"id": row["id"], "start": row["day"], "end": row["end_day"] or row["day"], "reason": row["reason"]}
 
 
 def free_reserved(conn: sqlite3.Connection, day: date) -> list[dict]:

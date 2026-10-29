@@ -542,6 +542,11 @@ def _marina(settings: Settings, pconn, practice_id: int, today: date, now: datet
                "agosto", "setembro", "outubro", "novembro", "dezembro"][today.month - 1],
                tiny_pdf("Nota fiscal de serviço (exemplo)", ["Plano Primeiro Ano · R$ 690,00", "Documento de demonstração, sem valor fiscal."]),
                by="atendente", by_name="Carla Souza", created=now - timedelta(days=max(1, today.day - 5)))
+        # um congresso numa sexta daqui a umas semanas: a agenda fechada aparece em Horários e na agenda do dia
+        congress = today + timedelta(days=14 + (4 - today.weekday()) % 7)
+        insert(c, "schedule_exceptions", {"day": congress.isoformat(), "end_day": congress.isoformat(),
+                                          "reason": "Congresso de Pediatria", "created_at": now_iso(),
+                                          "created_by": one(pconn, "SELECT id FROM users WHERE email = 'marina@demo.test'")["id"]})
     s.conn.close()
 
 

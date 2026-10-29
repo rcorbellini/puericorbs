@@ -29,8 +29,9 @@
 | Termo | No código | O que é |
 |---|---|---|
 | Serviço | `service` | o que se agenda e se cobra, com toda a configuração |
-| Grade de atendimento | `availability` | os turnos em que o pediatra atende, por unidade e dia da semana |
-| Exceção, bloqueio | `schedule_exception` | férias, congresso, feriado |
+| Grade de atendimento, horários | `availability` | os períodos em que a pediatra atende, por dia da semana (ela muda em Horários) |
+| Agenda fechada | `schedule_exceptions` | os dias sem atendimento (férias, congresso, folga), de `day` a `end_day` |
+| Pedido de confirmação | `confirm_asked_at` | quando a recepção abriu o WhatsApp para pedir a confirmação |
 | Agendamento | `appointment` | um horário marcado |
 | Vaga protegida para agudo | `reserved_slot` | horário que só abre no dia, para a criança doente |
 | Encaixe | `squeeze_in` | agendamento fora da grade |

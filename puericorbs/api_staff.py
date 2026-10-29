@@ -60,7 +60,7 @@ def add_months(d: date, n: int) -> date:
 def today(ctx: Ctx = Depends(dep)):
     clinician(ctx)
     conn, day = ctx.conn, ctx.today
-    appts = views.day_appointments(conn, day, ctx.now)
+    appts = views.day_appointments(conn, day, ctx.now, staff=True)
     waiting = sorted([a for a in appts if a["status"] == "chegou"], key=lambda a: a["arrived_at"] or "")
     current = next((a for a in appts if a["status"] == "em_atendimento"), None)
     upcoming = [a for a in appts if a["status"] in ("agendado", "confirmado") and a["start_at"] >= ctx.now.strftime("%Y-%m-%dT%H:%M")]
@@ -115,8 +115,9 @@ def agenda(day_: str | None = Query(None, alias="date"), scope: str | None = Non
         columns.append({
             "practice": {"id": p["id"], "name": p["name"], "slug": p["slug"], "accent": p["accent"]},
             "windows": [[s, e] for s, e in scheduling.windows(conn, day)],
+            "closure": views.closure_view(scheduling.closure(conn, day)),
             "reserved_free": views.free_reserved(conn, day),
-            "appointments": views.day_appointments(conn, day, ctx.now, practice=p),
+            "appointments": views.day_appointments(conn, day, ctx.now, practice=p, staff=True),
         })
     return {"date": day.isoformat(), "today": ctx.today.isoformat(), "now": ctx.now.strftime("%H:%M"),
             "columns": columns}
@@ -129,6 +130,90 @@ def slots(service_id: int, day_: str | None = Query(None, alias="date"), practic
     svc = _get(conn, "services", service_id, "Serviço")
     day = _date(day_, ctx.today)
     return {"date": day.isoformat(), "times": scheduling.free_times(conn, svc, day, ctx.now, for_family=False)}
+
+
+# ---- horários: a grade da semana (a pediatra) e a agenda fechada (a equipe) --------------------------------------------
+
+def _staff_rows(ctx: Ctx, conn, practice: dict, rows: list[dict]) -> list[dict]:
+    return [views.appointment_row(conn, r, ctx.now, practice=practice, staff=True) for r in rows]
+
+
+@router.get("/schedule")
+def schedule(practice_id: int | None = None, ctx: Ctx = Depends(dep)):
+    practice, conn = _practice(ctx, practice_id)
+    closures = []
+    for c in many(conn, """SELECT * FROM schedule_exceptions WHERE COALESCE(end_day, day) >= ? ORDER BY day, id""",
+                  (ctx.today.isoformat(),)):
+        view = views.closure_view(c)
+        by = one(ctx.pconn, "SELECT name FROM users WHERE id = ?", (c["created_by"],)) if c["created_by"] else None
+        view["by"] = by["name"] if by else None
+        view["appointments"] = _staff_rows(ctx, conn, practice, scheduling.in_days(
+            conn, date.fromisoformat(view["start"]), date.fromisoformat(view["end"])))
+        closures.append(view)
+    reserved = many(conn, "SELECT weekday, start_min, duration_min FROM reserved_slots ORDER BY weekday, start_min")
+    return {
+        "practice": {"id": practice["id"], "name": practice["name"]}, "today": ctx.today.isoformat(),
+        "can_edit_hours": practice["role"] == "clinician",
+        "periods": [{"weekday": r["weekday"], "start": scheduling.hhmm(r["start_min"]), "end": scheduling.hhmm(r["end_min"])}
+                    for r in many(conn, "SELECT * FROM availability ORDER BY weekday, start_min")],
+        "sick_slots": bool(reserved), "sick_duration": scheduling.sick_duration(conn),
+        "reserved": [{"weekday": r["weekday"], "time": scheduling.hhmm(r["start_min"]), "duration_min": r["duration_min"]}
+                     for r in reserved],
+        "closures": closures,
+    }
+
+
+class Hours(BaseModel):
+    periods: list[dict] = Field(default_factory=list)
+    sick_slots: bool = True
+    practice_id: int | None = None
+
+
+@router.put("/schedule")
+def save_hours(body: Hours, ctx: Ctx = Depends(dep)):
+    """A grade nova vale daqui para a frente. O que já estava marcado fora dela continua marcado: a resposta diz o quê,
+    para a recepção avisar a família."""
+    practice, conn = _practice(ctx, body.practice_id)
+    if practice["role"] != "clinician":
+        raise HTTPException(403, "Só a pediatra muda os dias e os horários de atendimento.")
+    periods = scheduling.parse_periods(body.periods)
+    with transaction(conn):
+        scheduling.set_hours(conn, periods, body.sick_slots)
+    return {"ok": True, "outside": _staff_rows(ctx, conn, practice, scheduling.outside_hours(conn, ctx.today))}
+
+
+class Closure(BaseModel):
+    start: str
+    end: str | None = None
+    reason: str | None = None
+    practice_id: int | None = None
+
+
+@router.post("/closures")
+def close_days(body: Closure, ctx: Ctx = Depends(dep)):
+    """Fecha a agenda de um dia (ou de vários): ninguém mais marca neles, nem a família pelo app. As consultas que já
+    estavam marcadas continuam, e voltam na resposta para a recepção avisar."""
+    practice, conn = _practice(ctx, body.practice_id)
+    first = _date(body.start, ctx.today)
+    last = _date(body.end, first) if body.end else first
+    if last < first:
+        raise HTTPException(400, "O último dia vem antes do primeiro. Confira as datas.")
+    if last < ctx.today:
+        raise HTTPException(400, "Esses dias já passaram. Escolha a partir de hoje.")
+    if (last - first).days > 366:
+        raise HTTPException(400, "Feche no máximo um ano de cada vez.")
+    reason = (body.reason or "").strip()[:80] or None
+    cid = insert(conn, "schedule_exceptions", {"day": first.isoformat(), "end_day": last.isoformat(), "reason": reason,
+                                               "created_by": ctx.user["id"], "created_at": now_iso()})
+    return {"id": cid, "affected": _staff_rows(ctx, conn, practice, scheduling.in_days(conn, first, last))}
+
+
+@router.delete("/closures/{closure_id}")
+def reopen_days(closure_id: int, practice_id: int | None = None, ctx: Ctx = Depends(dep)):
+    practice, conn = _practice(ctx, practice_id)
+    _get(conn, "schedule_exceptions", closure_id, "Fechamento")
+    conn.execute("DELETE FROM schedule_exceptions WHERE id = ?", (closure_id,))
+    return {"ok": True}
 
 
 class NewAppointment(BaseModel):
@@ -175,6 +260,20 @@ def appointment_action(appt_id: int, body: Action, ctx: Ctx = Depends(dep)):
         if body.action == "iniciar":
             encounter_id = _open_encounter(ctx, conn, appt)
     return {"status": status, "encounter_id": encounter_id}
+
+
+class Asked(BaseModel):
+    practice_id: int | None = None
+
+
+@router.post("/appointments/{appt_id}/asked")
+def appointment_asked(appt_id: int, body: Asked, ctx: Ctx = Depends(dep)):
+    """A recepção abriu o WhatsApp para pedir a confirmação: a lista mostra que o pedido já foi."""
+    practice, conn = _practice(ctx, body.practice_id)
+    _get(conn, "appointments", appt_id, "Agendamento")
+    asked = ctx.now.strftime("%Y-%m-%dT%H:%M:%S")
+    update(conn, "appointments", appt_id, {"confirm_asked_at": asked})
+    return {"confirm_asked_at": asked}
 
 
 class Receive(BaseModel):
@@ -893,19 +992,27 @@ def delete_expense(expense_id: int, ctx: Ctx = Depends(dep)):
 
 # ---- recepção ---------------------------------------------------------------------------------------------------------
 
+def _confirm_day(conn, today: date) -> date:
+    """O dia a confirmar: o próximo com consulta marcada, até uma semana à frente (na sexta, a segunda)."""
+    row = one(conn, """SELECT substr(start_at, 1, 10) AS d FROM appointments WHERE substr(start_at, 1, 10) BETWEEN ? AND ?
+                       AND status IN ('agendado', 'confirmado') ORDER BY start_at LIMIT 1""",
+              ((today + timedelta(days=1)).isoformat(), (today + timedelta(days=7)).isoformat()))
+    return date.fromisoformat(row["d"]) if row else today + timedelta(days=1)
+
+
 @router.get("/reception")
 def reception(ctx: Ctx = Depends(dep)):
     """As tarefas do dia, de todas as práticas que quem pede atende."""
     staff(ctx)
-    tomorrow = ctx.today + timedelta(days=1)
     out = {"date": ctx.today.isoformat(), "practices": []}
     for p in staff_practices(ctx):
         conn = ctx.open_practice(p["id"])
         finance.ensure_plan_charges(conn, ctx.today)
-        tom = [views.appointment_row(conn, a, ctx.now, practice=p) for a in many(
+        day = _confirm_day(conn, ctx.today)
+        confirm = [views.appointment_row(conn, a, ctx.now, practice=p, staff=True) for a in many(
             conn, "SELECT * FROM appointments WHERE substr(start_at, 1, 10) = ? AND status IN ('agendado', 'confirmado') ORDER BY start_at",
-            (tomorrow.isoformat(),))]
-        arrivals = [a for a in views.day_appointments(conn, ctx.today, ctx.now, practice=p) if a["status"] == "chegou"]
+            (day.isoformat(),))]
+        arrivals = [a for a in views.day_appointments(conn, ctx.today, ctx.now, practice=p, staff=True) if a["status"] == "chegou"]
         outreach = []
         for pt in many(conn, "SELECT * FROM patients ORDER BY name"):
             nv = care.next_visit_state(conn, pt, ctx.today)
@@ -921,11 +1028,12 @@ def reception(ctx: Ctx = Depends(dep)):
         overdue = many(conn, """SELECT c.*, f.name AS family, pt.name AS patient FROM charges c JOIN families f ON f.id = c.family_id
                                 LEFT JOIN patients pt ON pt.id = c.patient_id
                                 WHERE c.status = 'aberta' AND c.due_on < ? ORDER BY c.due_on""", (ctx.today.isoformat(),))
-        to_receive = [a for a in views.day_appointments(conn, ctx.today, ctx.now, practice=p)
+        to_receive = [a for a in views.day_appointments(conn, ctx.today, ctx.now, practice=p, staff=True)
                       if a["status"] in ("atendido", "em_atendimento", "chegou") and not a["covered"] and not a["paid"] and a["price_cents"] > 0]
         out["practices"].append({
             "practice": {"id": p["id"], "name": p["name"], "slug": p["slug"]},
-            "tomorrow": tom, "tomorrow_confirmed": sum(1 for a in tom if a["status"] == "confirmado"),
+            "confirm_date": day.isoformat(), "confirm": confirm,
+            "confirmed": sum(1 for a in confirm if a["status"] == "confirmado"),
             "arrivals": arrivals, "outreach": outreach, "invoices": invoices, "overdue": overdue,
             "to_receive": to_receive,
         })

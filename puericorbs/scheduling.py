@@ -1,8 +1,10 @@
 """A agenda: os horários livres de um serviço num dia, marcar e as mudanças de estado de um agendamento.
 
-A grade (`availability`) diz os turnos de cada dia da semana. As vagas protegidas (`reserved_slots`) ficam fechadas
-para tudo, menos para a consulta por doença no próprio dia: é a vaga da criança que adoeceu hoje. O encaixe (só da
-recepção e do pediatra) passa por cima da grade e de quem já está marcado.
+A grade (`availability`) diz os períodos de cada dia da semana, e a pediatra a muda em Horários (`set_hours`). A agenda
+fechada (`schedule_exceptions`: férias, congresso, folga) tira dias inteiros da grade; o que já estava marcado neles
+continua marcado, para a recepção avisar a família. As vagas protegidas (`reserved_slots`) ficam fechadas para tudo,
+menos para a consulta por doença no próprio dia: é a vaga da criança que adoeceu hoje. Elas nascem da grade, uma no fim
+de cada período. O encaixe (só da recepção e do pediatra) passa por cima da grade e de quem já está marcado.
 """
 
 from __future__ import annotations
@@ -46,17 +48,30 @@ def minutes(text: str) -> int:
     return int(h) * 60 + int(m)
 
 
-def windows(conn: sqlite3.Connection, day: date) -> list[tuple[int, int]]:
-    if one(conn, "SELECT id FROM schedule_exceptions WHERE day = ?", (day.isoformat(),)):
-        return []
+def closure(conn: sqlite3.Connection, day: date) -> dict | None:
+    """O fechamento que cobre o dia, se houver (o que começou primeiro)."""
+    iso = day.isoformat()
+    return one(conn, """SELECT * FROM schedule_exceptions WHERE day <= ? AND COALESCE(end_day, day) >= ?
+                        ORDER BY day, id LIMIT 1""", (iso, iso))
+
+
+def hours(conn: sqlite3.Connection, day: date) -> list[tuple[int, int]]:
+    """Os períodos da grade no dia da semana, sem olhar se a agenda está fechada."""
     return [(r["start_min"], r["end_min"]) for r in many(
         conn, "SELECT start_min, end_min FROM availability WHERE weekday = ? ORDER BY start_min", (day.weekday(),))]
 
 
+def windows(conn: sqlite3.Connection, day: date) -> list[tuple[int, int]]:
+    """Os períodos em que se marca no dia: a grade, a não ser que a agenda esteja fechada."""
+    return [] if closure(conn, day) else hours(conn, day)
+
+
 def reserved(conn: sqlite3.Connection, day: date) -> list[tuple[int, int]]:
-    return [(r["start_min"], r["start_min"] + r["duration_min"]) for r in many(
+    """As vagas protegidas do dia que caem dentro da grade (num dia fechado, nenhuma)."""
+    wins = windows(conn, day)
+    return [(s, e) for s, e in ((r["start_min"], r["start_min"] + r["duration_min"]) for r in many(
         conn, "SELECT start_min, duration_min FROM reserved_slots WHERE weekday = ? ORDER BY start_min",
-        (day.weekday(),))]
+        (day.weekday(),))) if any(ws <= s and e <= we for ws, we in wins)]
 
 
 def busy(conn: sqlite3.Connection, day: date, ignore_id: int | None = None) -> list[tuple[int, int]]:
@@ -130,6 +145,12 @@ def book(conn: sqlite3.Connection, *, patient: dict, service: dict, start: datet
             raise HTTPException(409, "Este serviço não é para a idade da criança.")
     dur = service["duration_min"]
     s = start.hour * 60 + start.minute
+    closed = closure(conn, day)
+    if closed and kind != "encaixe":
+        if source == "familia":
+            raise HTTPException(409, "Este dia não tem horário. Escolha outro.")
+        why = f" ({closed['reason']})" if closed["reason"] else ""
+        raise HTTPException(409, f"A agenda está fechada neste dia{why}. Para marcar mesmo assim, use o encaixe.")
     if kind != "encaixe":
         free = {f["time"] for f in free_times(conn, service, day, now, for_family=source == "familia")}
         if hhmm(s) not in free:
@@ -164,3 +185,74 @@ def transition(conn: sqlite3.Connection, appt: dict, action: str, now: datetime)
     sets = ", ".join(f"{k} = ?" for k in values)
     conn.execute(f"UPDATE appointments SET {sets} WHERE id = ?", (*values.values(), appt["id"]))
     return target
+
+
+# ---- os horários da pediatra --------------------------------------------------------------------------------------------
+
+WEEKDAYS = ("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+MAX_PERIODS = 6
+
+
+def parse_periods(items: list[dict]) -> list[tuple[int, int, int]]:
+    """[{weekday, start: "08:00", end: "12:00"}] → [(dia, começo, fim)], conferidos: o fim depois do começo, de 5 em 5
+    minutos e sem dois períodos do mesmo dia se cruzando."""
+    out: list[tuple[int, int, int]] = []
+    for it in items:
+        wd = it.get("weekday")
+        if not isinstance(wd, int) or not 0 <= wd <= 6:
+            raise HTTPException(400, "Dia da semana inválido.")
+        name = WEEKDAYS[wd].capitalize()
+        try:
+            s, e = minutes(str(it.get("start", ""))), minutes(str(it.get("end", "")))
+        except (ValueError, IndexError) as exc:
+            raise HTTPException(400, f"{name}: escreva o horário como 08:00.") from exc
+        if not (0 <= s < 24 * 60 and 0 < e <= 24 * 60):
+            raise HTTPException(400, f"{name}: o horário vai de 00:00 a 23:59.")
+        if s % 5 or e % 5:
+            raise HTTPException(400, f"{name}: use horários de 5 em 5 minutos (08:00, 08:05…).")
+        if e - s < 15:
+            raise HTTPException(400, f"{name}: o fim ({hhmm(e)}) precisa vir pelo menos 15 minutos depois do começo ({hhmm(s)}).")
+        out.append((wd, s, e))
+    out.sort()
+    for (wa, sa, ea), (wb, sb, eb) in zip(out, out[1:]):
+        if wa == wb and sb < ea:
+            raise HTTPException(400, f"{WEEKDAYS[wa].capitalize()}: os períodos {hhmm(sa)}–{hhmm(ea)} e {hhmm(sb)}–{hhmm(eb)} se cruzam.")
+    for wd in range(7):
+        if sum(1 for w, _, _ in out if w == wd) > MAX_PERIODS:
+            raise HTTPException(400, f"{WEEKDAYS[wd].capitalize()}: são no máximo {MAX_PERIODS} períodos por dia.")
+    return out
+
+
+def sick_duration(conn: sqlite3.Connection) -> int:
+    row = one(conn, "SELECT duration_min FROM services WHERE kind = 'sick_visit' AND active = 1 ORDER BY position, id LIMIT 1")
+    return row["duration_min"] if row else 30
+
+
+def set_hours(conn: sqlite3.Connection, periods: list[tuple[int, int, int]], sick_slots: bool) -> None:
+    """Troca a grade inteira. Com `sick_slots`, o fim de cada período (do tamanho da consulta por doença) vira a vaga
+    protegida da criança que adoece no dia; período curto demais para ela fica sem."""
+    dur = sick_duration(conn)
+    conn.execute("DELETE FROM availability")
+    conn.execute("DELETE FROM reserved_slots")
+    for wd, s, e in periods:
+        insert(conn, "availability", {"weekday": wd, "start_min": s, "end_min": e})
+        if sick_slots and e - s > dur:
+            insert(conn, "reserved_slots", {"weekday": wd, "start_min": e - dur, "duration_min": dur})
+
+
+def outside_hours(conn: sqlite3.Connection, today: date) -> list[dict]:
+    """As consultas marcadas daqui para a frente que ficaram fora da grade (o encaixe já nasce fora dela)."""
+    rows = many(conn, """SELECT * FROM appointments WHERE substr(start_at, 1, 10) >= ? AND status IN ('agendado', 'confirmado')
+                         AND kind != 'encaixe' ORDER BY start_at""", (today.isoformat(),))
+    out = []
+    for r in rows:
+        s, e = minutes(r["start_at"]), minutes(r["end_at"])
+        if not any(ws <= s and e <= we for ws, we in hours(conn, date.fromisoformat(r["start_at"][:10]))):
+            out.append(r)
+    return out
+
+
+def in_days(conn: sqlite3.Connection, first: date, last: date) -> list[dict]:
+    """As consultas marcadas entre dois dias (os dois inclusive): as que um fechamento deixa para remarcar."""
+    return many(conn, """SELECT * FROM appointments WHERE substr(start_at, 1, 10) BETWEEN ? AND ?
+                         AND status IN ('agendado', 'confirmado') ORDER BY start_at""", (first.isoformat(), last.isoformat()))

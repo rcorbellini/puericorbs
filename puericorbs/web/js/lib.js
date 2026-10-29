@@ -216,13 +216,22 @@ export function carePill(item, todayIso) {
   return html`<span class="pill todo">A fazer</span>`;
 }
 
+// O número para o WhatsApp: o do Brasil ganha o 55 (com o DDD, 10 ou 11 dígitos); com +, vale como está. Sem DDD, ''.
+export function waNumber(phone) {
+  const intl = /^\s*\+/.test(String(phone || ''));
+  let d = String(phone || '').replace(/\D/g, '');
+  if (!intl) d = d.replace(/^0+/, '');
+  if (!intl && (d.length === 10 || d.length === 11)) d = `55${d}`;
+  return d.length >= (intl ? 8 : 12) && d.length <= 15 ? d : '';
+}
+// a conversa do WhatsApp já com a mensagem escrita (sem número, a pessoa escolhe o contato)
+export const waLink = (phone, text) => `https://wa.me/${waNumber(phone)}?text=${encodeURIComponent(text)}`;
+
 // O link de um convite: copiar, mandar pelo WhatsApp (já com a mensagem e, se houver, o telefone) ou pelo compartilhar
 // do celular. Quem gera o link é quem manda: nada sai do Puericorbs sozinho.
 export function shareLink({ title, intro, link, text, phone, note }) {
   const message = text || link;
-  let digits = String(phone || '').replace(/\D/g, '');
-  if (digits && digits.length <= 11) digits = `55${digits}`;
-  const wa = `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  const wa = waLink(phone, message);
   const d = dialog({
     title,
     body: html`${intro ? html`<p class="muted pretty">${intro}</p>` : ''}

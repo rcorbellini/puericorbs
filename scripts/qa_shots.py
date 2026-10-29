@@ -114,6 +114,26 @@ def shots(out: Path, only: str = "") -> int:
                 return r.json()["url"].lstrip("/")
             return make
 
+        def closed_day(ctx, base):
+            """Fecha a agenda da Dra. Marina num dia com consulta marcada e abre a agenda nesse dia."""
+            from datetime import date, timedelta
+            day = (date.today() + timedelta(days=1)).isoformat()
+            if not any(c["reason"] == "Doença" for c in ctx.request.get(f"{base}/api/staff/schedule").json()["closures"]):
+                r = ctx.request.post(f"{base}/api/staff/closures", data={"start": day, "end": day, "reason": "Doença"},
+                                     headers={"X-PC": "1"})
+                assert r.ok, (r.status, r.text())
+            return f"?d={day}"
+
+        def reopen_all(ctx, base):
+            """Desfaz o fechamento de closed_day (a demonstração volta como estava)."""
+            for c in ctx.request.get(f"{base}/api/staff/schedule").json()["closures"]:
+                if c["reason"] == "Doença":
+                    ctx.request.delete(f"{base}/api/staff/closures/{c['id']}", headers={"X-PC": "1"})
+
+        def tomorrow(ctx, base):
+            from datetime import date, timedelta
+            return f"?d={(date.today() + timedelta(days=1)).isoformat()}"
+
         m, c, a, adm = "marina@demo.test", "carla@demo.test", "ana@demo.test", "admin@demo.test"
         run("plataforma-1280", "localhost", "", DESK)
         run("plataforma-390", "localhost", "", PHONE)
@@ -168,6 +188,19 @@ def shots(out: Path, only: str = "") -> int:
         run("vendo-como-familia-escuro-390", "dramarina.localhost", "", PHONE, adm, theme="escuro", before=view_as(family="com conta"))
         run("vendo-como-familia-sem-conta-390", "dramarina.localhost", "", PHONE, adm, before=view_as(family="sem conta"))
         run("vendo-como-voltar-1280", "dramarina.localhost", "", DESK, adm, before=view_as(m), after=click_then(".actingbar button", ".pcard"))
+        run("horarios-1280", "dramarina.localhost", "#/horarios", DESK, m)
+        run("horarios-390", "dramarina.localhost", "#/horarios", PHONE, m)
+        run("horarios-escuro-390", "dramarina.localhost", "#/horarios", PHONE, m, theme="escuro")
+        run("horarios-recepcao-390", "dramarina.localhost", "#/horarios", PHONE, c)
+        run("horarios-fechar-390", "dramarina.localhost", "#/horarios", PHONE, m, after=click('[data-act="close"]'))
+        run("horarios-sabado-390", "dramarina.localhost", "#/horarios", PHONE, m, after=click('[data-day="5"]'))
+        run("agenda-amanha-dialogo-390", "dramarina.localhost", "#/agenda", PHONE, c, before=tomorrow,
+            after=click('.appt:has(.pill.todo)'))
+        run("agenda-fechada-1280", "dramarina.localhost", "#/agenda", DESK, m, before=closed_day)
+        run("agenda-fechada-390", "dramarina.localhost", "#/agenda", PHONE, m, before=closed_day)
+        run("horarios-com-fechamento-390", "dramarina.localhost", "#/horarios", PHONE, m, before=closed_day,
+            after=click('[data-act="warn"]'))
+        run("horarios-limpa", "dramarina.localhost", "#/horarios", PHONE, m, before=lambda ctx, base: reopen_all(ctx, base) or "")
         run("recepcao-1280", "dramarina.localhost", "#/recepcao", DESK, c)
         run("recepcao-390", "dramarina.localhost", "#/recepcao", PHONE, c)
         run("recepcao-agenda-1280", "dramarina.localhost", "#/agenda", DESK, c)

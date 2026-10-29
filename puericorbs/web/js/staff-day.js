@@ -1,6 +1,6 @@
 // O dia: o painel do pediatra (Hoje), a agenda em grade e as tarefas da recepção.
-import { api, html, raw, icon, toast, money, dateLong, dateBR, addDays, initials, statusPill, fileIcon, ago, actions, relDay } from './lib.js';
-import { openAppointment, newAppointment, greeting } from './staff-common.js';
+import { api, html, raw, icon, toast, money, dateLong, dateBR, addDays, initials, statusPill, fileIcon, ago, actions, relDay, weekday, ask } from './lib.js';
+import { openAppointment, newAppointment, greeting, waButton, bindWhatsApp, askedText } from './staff-common.js';
 import { setCount, refresh } from './staff.js';
 
 export const shortName = (name) => {
@@ -187,21 +187,28 @@ export async function agenda(view, params, app) {
       <button class="iconbtn" type="button" data-act="next" aria-label="Próximo dia">${icon('chevR')}</button>
       <label class="field" style="flex:0 0 auto"><input type="date" data-pick value="${r.date}" aria-label="Escolher o dia" style="width:140px"></label>
       ${multi ? html`<div class="seg" role="group" aria-label="De quem"><button type="button" data-act="scope" data-scope="me" aria-pressed="${clinicScope === 'me'}">${app.me.role === 'clinician' ? 'A minha' : app.site.practice.name}</button><button type="button" data-act="scope" data-scope="clinic" aria-pressed="${clinicScope === 'clinic'}">A clínica</button></div>` : ''}
+      <a class="btn ghost" href="#/horarios">${icon('clock')}Horários</a>
       <button class="btn" type="button" data-act="new">${icon('plus')}Agendar</button>
     </div>
+    ${r.columns.map((c, ci) => c.closure ? html`<section class="glass card closed-day">
+      <span class="tick">${icon('calendar')}</span>
+      <div class="grow" style="min-width:200px"><b style="display:block">Agenda${r.columns.length > 1 ? ` de ${c.practice.name}` : ''} fechada ${closureRange(c.closure)}${c.closure.reason ? ` · ${c.closure.reason}` : ''}</b>
+        <span class="t-small muted">Ninguém marca neste dia, nem a família pelo app.${c.appointments.length ? ' As consultas já marcadas continuam: avise as famílias para remarcar.' : ''}</span></div>
+      <button class="btn ghost small" type="button" data-act="reopen" data-col="${ci}">Reabrir</button>
+    </section>` : '')}
     <section class="glass card">
       <div class="gridbox">
         <div class="daygrid" style="--row:${ROW}px;grid-template-columns:52px repeat(${r.columns.length}, minmax(250px, 1fr));grid-template-rows:56px repeat(${nrows}, ${ROW}px)">
           ${r.columns.map((c, ci) => html`<div class="colhead" style="grid-column:${ci + 2};grid-row:1"><span class="av sm">${initials(c.practice.name)}</span><div class="grow"><b>${c.practice.name}</b><span class="t-small muted">${c.appointments.length} consulta${c.appointments.length === 1 ? '' : 's'}${c.reserved_free.length ? ` · ${c.reserved_free.length} vaga${c.reserved_free.length > 1 ? 's' : ''} livre${c.reserved_free.length > 1 ? 's' : ''}` : ''}</span></div></div>`)}
           ${labels.map((m) => raw(`<span class="tlabel" style="grid-column:1;grid-row:${2 + (m - t0) / 10}">${hhmm(m)}</span>`))}
-          ${r.columns.map((c, ci) => html`<div class="lane" data-lane="${ci}" style="grid-column:${ci + 2};grid-row:2 / span ${nrows}" title="Toque num horário vazio para agendar"></div>`)}
+          ${r.columns.map((c, ci) => html`<div class="lane ${c.closure ? 'closed' : ''}" data-lane="${ci}" style="grid-column:${ci + 2};grid-row:2 / span ${nrows}" title="${c.closure ? 'Agenda fechada neste dia: só encaixe' : 'Toque num horário vazio para agendar'}"></div>`)}
           ${r.columns.map((c, ci) => lanes(c).map((it) => {
             const start = 2 + Math.round((it.s - t0) / 10);
             const span = Math.max(2, Math.round((it.e - it.s) / 10));
             const place = `grid-column:${ci + 2};grid-row:${start} / span ${span}${it.lanes > 1 ? `;justify-self:start;width:calc(100% / ${it.lanes} - 3px);margin-left:calc(100% / ${it.lanes} * ${it.lane})` : ''}`;
             if (it.slot) return html`<button class="appt slot ${span <= 2 ? 'short' : ''} ${it.lanes > 1 ? 'narrow' : ''}" type="button" data-act="slot" data-col="${ci}" data-time="${it.slot.time}" style="${place}"><b>Vaga para criança doente</b><span class="pill">Livre</span></button>`;
             const a = it.a;
-            const cls = [a.status === 'atendido' && 'done', a.status === 'em_atendimento' && 'now', a.kind === 'encaixe' && 'squeeze', a.status === 'faltou' && 'miss', span <= 2 && 'short', it.lanes > 1 && 'narrow'].filter(Boolean).join(' ');
+            const cls = [a.status === 'atendido' && 'done', a.status === 'em_atendimento' && 'now', a.kind === 'encaixe' && 'squeeze', a.status === 'faltou' && 'miss', span <= 2 && 'short', it.lanes > 1 && 'narrow', c.closure && 'on-closed'].filter(Boolean).join(' ');
             return html`<button class="appt ${cls}" type="button" data-act="appt" data-col="${ci}" data-id="${a.id}" style="${place}" title="${a.patient.name} · ${a.time} · ${a.service} · ${a.status_label}">
               <b>${a.patient.name}, ${a.patient.age_short}${a.kind === 'encaixe' ? ' · encaixe' : ''}</b>${span > 2 ? html`<span class="s">${a.time} · ${a.service}${a.covered ? ' · plano' : ''}</span>` : ''}${apptPill(a)}</button>`;
           }))}
@@ -223,10 +230,26 @@ export async function agenda(view, params, app) {
     new: () => newAppointment(app, { date: r.date }, refresh),
     appt: (el) => openAppointment(app, r.columns[Number(el.dataset.col)].appointments.find((a) => a.id === Number(el.dataset.id)), refresh),
     slot: (el) => newAppointment(app, { date: r.date, time: el.dataset.time, serviceKind: 'sick_visit', practiceId: r.columns[Number(el.dataset.col)].practice.id }, refresh),
+    reopen: async (el) => {
+      const c = r.columns[Number(el.dataset.col)];
+      if (!await ask(`Reabrir a agenda ${closureRange(c.closure)}?`, 'Os horários voltam para a recepção e para o app da família.', 'Reabrir')) return;
+      await api(`/api/staff/closures/${c.closure.id}?practice_id=${c.practice.id}`, { method: 'DELETE' });
+      toast('Agenda reaberta.'); refresh();
+    },
   });
 }
 
+// "em 02/11" ou "de 02/11 a 04/11"
+export function closureRange(c) {
+  return c.start === c.end ? `em ${dateBR(c.start)}` : `de ${dateBR(c.start)} a ${dateBR(c.end)}`;
+}
+
 // ---- Recepção -----------------------------------------------------------------------------------------------------------
+// o dia que a recepção confirma: amanhã, ou o próximo com consulta (na sexta, a segunda)
+function confirmDay(iso, todayIso) {
+  return relDay(iso, todayIso) === 'amanhã' ? 'amanhã' : `${weekday(iso)}, ${dateBR(iso)}`;
+}
+
 export async function reception(view, params, app) {
   const r = await api('/api/staff/reception');
   const multi = r.practices.length > 1;
@@ -250,10 +273,12 @@ export async function reception(view, params, app) {
             : html`<p class="t-small muted" style="margin-top:8px">As consultas avulsas atendidas aparecem aqui para receber.</p>`}
         </section>
         <section class="glass card">
-          <div class="phead"><h3 class="t-h2">Confirmar amanhã</h3><span class="t-small muted">${p.tomorrow_confirmed} de ${p.tomorrow.length} confirmadas</span></div>
-          ${p.tomorrow.length ? html`<div class="meter" style="margin-top:10px"><i style="width:${Math.round(100 * p.tomorrow_confirmed / p.tomorrow.length)}%"></i></div>` : ''}
-          <div style="margin-top:4px">${p.tomorrow.filter((a) => a.status === 'agendado').map((a) => html`<div class="li"><div class="grow"><b>${a.patient.name}</b><p class="t-small muted">${a.time} · ${a.service}</p></div><button class="btn ghost small" type="button" data-act="confirm" data-p="${pi}" data-id="${a.id}">Confirmar</button></div>`)}</div>
-          ${!p.tomorrow.some((a) => a.status === 'agendado') ? html`<p class="t-small muted" style="margin-top:8px">${p.tomorrow.length ? 'Todas confirmadas.' : 'Nenhuma consulta amanhã.'}</p>` : ''}
+          <div class="phead"><h3 class="t-h2">Confirmar ${confirmDay(p.confirm_date, r.date)}</h3><span class="t-small muted">${p.confirmed} de ${p.confirm.length} confirmada${p.confirm.length === 1 ? '' : 's'}</span></div>
+          ${p.confirm.length ? html`<div class="meter" style="margin-top:10px"><i style="width:${Math.round(100 * p.confirmed / p.confirm.length)}%"></i></div>` : ''}
+          <div style="margin-top:4px">${p.confirm.filter((a) => a.status === 'agendado').map((a) => html`<div class="li" style="flex-wrap:wrap">
+            <div class="grow" style="min-width:150px"><b>${a.patient.name}</b><p class="t-small muted">${a.time} · ${a.service}${a.confirm_asked_at ? ` · pedida ${askedText(a.confirm_asked_at, r.date)}` : ''}</p></div>
+            <span class="libtns">${waButton(app, a, 'confirmar', 'WhatsApp')}<button class="btn ghost small" type="button" data-act="confirm" data-p="${pi}" data-id="${a.id}">Confirmar</button></span></div>`)}</div>
+          ${!p.confirm.some((a) => a.status === 'agendado') ? html`<p class="t-small muted" style="margin-top:8px">${p.confirm.length ? 'Todas confirmadas.' : 'Nenhuma consulta para confirmar.'}</p>` : ''}
         </section>
         <section class="glass card">
           <div class="phead"><h3 class="t-h2">Busca ativa</h3><span class="t-small muted">${p.outreach.length} puericultura${p.outreach.length === 1 ? '' : 's'} atrasada${p.outreach.length === 1 ? '' : 's'}</span></div>
@@ -273,6 +298,7 @@ export async function reception(view, params, app) {
             : html`<p class="t-small muted" style="margin-top:8px">Nenhuma mensalidade atrasada.</p>`}
         </section>
       </div>`)}`);
+  bindWhatsApp(view, app, (id) => r.practices.flatMap((p) => p.confirm).find((a) => a.id === id), refresh);
   actions(view, {
     new: () => newAppointment(app, {}, refresh),
     appt: (el) => openAppointment(app, r.practices[Number(el.dataset.p)][el.dataset.kind].find((a) => a.id === Number(el.dataset.id)), refresh),

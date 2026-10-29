@@ -50,7 +50,7 @@ export async function services(view, params, app) {
           <p class="t-small muted pretty">${svc.kind === 'well_child' ? 'O nome acompanha a idade pelo protocolo, e o app só oferece os dias dentro da janela da criança.' : cfg.booking.family ? 'A família marca pelo app, dentro das regras ao lado.' : 'Este serviço não aparece no app: só a recepção marca.'}</p>
         </section>
         <section class="glass card" style="display:flex;flex-direction:column;gap:10px">
-          <h2 class="t-h2">Grade de atendimento</h2>
+          <div class="phead"><h2 class="t-h2">Grade de atendimento</h2><a class="linkbtn t-small" href="#/horarios">Mudar os horários</a></div>
           <div class="rows">${[0, 1, 2, 3, 4, 5, 6].map((wd) => {
             const win = r.schedule.availability.filter((a) => a.weekday === wd);
             const res = r.schedule.reserved.filter((a) => a.weekday === wd);

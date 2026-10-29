@@ -4,6 +4,23 @@
 
 ## Tomadas
 
+### 28/10/2026 — os horários da pediatra e a confirmação pelo WhatsApp
+
+32. **A pediatra define os dias e os horários em que atende, e só ela** (Horários, `#/horarios`). Pedido do dono: "a
+    médica normalmente vai atender segunda, terça e quarta das 8 às 16". Cada dia tem os seus períodos; a recepção vê e
+    não muda. A vaga da criança doente nasce da grade: o fim de cada período, do tamanho da consulta por doença (dá para
+    desligar). A grade nova vale daqui para a frente. A consulta já marcada fora dela continua marcada, e a resposta traz
+    a lista com o aviso pronto para cada família.
+33. **A agenda fecha por um dia ou por vários, e a pediatra e a recepção fecham e reabrem.** Pedido do dono: "autonomia
+    pra fechar um dia de agenda ou mais". A recepção também fecha porque, quando a pediatra adoece de manhã, é para ela
+    que liga; a pediatra continua fechando sozinha. Num dia fechado ninguém marca na grade, nem a família pelo app, que
+    não fica sabendo o motivo. O encaixe continua possível. Nada que estava marcado é desmarcado sozinho: a lista volta
+    com o "precisamos remarcar" pronto no WhatsApp.
+34. **Pedir a confirmação pelo WhatsApp é um link com a mensagem pronta,** aberto no WhatsApp de quem clica (`wa.me`),
+    não uma integração. Pedido do dono. Nada sai do Puericorbs sozinho, e não há custo nem aprovação da Meta; a
+    confirmação automática (M2) vem com a API. O pedido fica registrado ("pedida às 14:32"). O cartão de confirmar mostra
+    o próximo dia com consulta: na sexta, a segunda.
+
 ### 28/10/2026 — o nome do consultório no celular e na prévia do link
 
 31. **O consultório aparece com o nome que a pediatra deu a ele, no app instalado e na prévia do link.** Pedido do

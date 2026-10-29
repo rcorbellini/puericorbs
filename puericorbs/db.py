@@ -152,7 +152,7 @@ def _platform_v4(conn: sqlite3.Connection) -> None:
 
 PLATFORM_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _platform_v2, 3: _platform_v3, 4: _platform_v4}
 
-PRACTICE_VERSION = 2
+PRACTICE_VERSION = 3
 PRACTICE_SCHEMA = """
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
@@ -218,10 +218,14 @@ CREATE TABLE reserved_slots (
   start_min INTEGER NOT NULL,
   duration_min INTEGER NOT NULL
 );
+-- a agenda fechada (férias, congresso, folga): de `day` até `end_day`, os dois inclusive; quem fechou fica em created_by
 CREATE TABLE schedule_exceptions (
   id INTEGER PRIMARY KEY,
   day TEXT NOT NULL,
-  reason TEXT
+  reason TEXT,
+  end_day TEXT,
+  created_by INTEGER,
+  created_at TEXT
 );
 CREATE TABLE plans (
   id INTEGER PRIMARY KEY,
@@ -267,7 +271,8 @@ CREATE TABLE appointments (
   arrived_at TEXT,
   notes TEXT,
   created_at TEXT NOT NULL,
-  created_by INTEGER
+  created_by INTEGER,
+  confirm_asked_at TEXT
 );
 CREATE INDEX appointments_start ON appointments(start_at);
 CREATE INDEX appointments_patient ON appointments(patient_id);
@@ -399,7 +404,14 @@ def _practice_v2(conn: sqlite3.Connection) -> None:
     conn.execute("ALTER TABLE audit_log ADD COLUMN detail TEXT")
 
 
-PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2}
+def _practice_v3(conn: sqlite3.Connection) -> None:
+    """A agenda fechada por vários dias (e quem fechou) e o pedido de confirmação mandado pela recepção."""
+    for col in ("end_day TEXT", "created_by INTEGER", "created_at TEXT"):
+        conn.execute(f"ALTER TABLE schedule_exceptions ADD COLUMN {col}")
+    conn.execute("ALTER TABLE appointments ADD COLUMN confirm_asked_at TEXT")
+
+
+PRACTICE_MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {2: _practice_v2, 3: _practice_v3}
 
 
 def now_iso(tz=None) -> str:

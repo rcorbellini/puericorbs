@@ -62,10 +62,11 @@ As unidades estão em `deploy/`; o domínio de cada pediatra, o túnel e o DNS, 
 - **Pediatra:** o dia (quem chegou, a agenda, o que revisar, a busca ativa, o dinheiro do dia); a consulta com o modelo
   do serviço, as medidas com percentil da OMS na hora, os marcos, o resumo para a família separado do registro e os
   próximos passos; a ficha da criança (linha do cuidado, curvas, caderneta, marcos, consultas, arquivos); a caixa de
-  revisão; os serviços (cada um configurável); os planos com cota; o financeiro com a exportação para o contador.
-- **Recepção:** as tarefas do dia de todos os pediatras que atende (chegadas, receber, confirmar amanhã, busca ativa,
-  notas a emitir, mensalidades em atraso); a agenda da clínica em grade, com encaixe e as vagas da criança doente; o
-  cadastro das famílias.
+  revisão; os serviços (cada um configurável); os horários (os dias e os períodos em que atende, a vaga da criança
+  doente e a agenda fechada por um dia ou mais); os planos com cota; o financeiro com a exportação para o contador.
+- **Recepção:** as tarefas do dia de todos os pediatras que atende (chegadas, receber, confirmar o próximo dia com
+  consulta, com o pedido pelo WhatsApp já escrito, busca ativa, notas a emitir, mensalidades em atraso); a agenda da
+  clínica em grade, com encaixe, as vagas da criança doente e os dias fechados; o cadastro das famílias.
 - **Família:** o próximo passo e o "a fazer" calculados pela idade; o feito, com o resumo de cada consulta; agendar
   dentro da janela do protocolo e das regras do serviço, com o plano; a curva de crescimento, as vacinas e os marcos;
   os arquivos, com o envio de exames e fotos para a pediatra revisar. Instalado no celular, o app leva o nome do

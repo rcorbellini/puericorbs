@@ -15,7 +15,8 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
 - **Do M1, feito:** agenda (grade, vagas da criança doente, encaixe, recepção do dia, busca ativa), consulta com
   modelos, medidas e curvas da OMS, linha do cuidado (puericultura, vacinas, marcos), app da família, arquivos com caixa
   de revisão, plano com cota, recebimentos e o financeiro do mês, e o acesso da família pelo link (que também serve
-  para a família criar outra senha). **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
+  para a família criar outra senha). Também: os horários da pediatra e a agenda fechada, o pedido de confirmação pelo
+  WhatsApp (o primeiro passo do M2) e o nome do consultório no app instalado e na prévia do link. **Falta:** recuperar a senha da equipe, recibos e documentos em PDF, caixa,
   lembretes (push e e-mail).
 
 ## Conversar com pediatras

@@ -227,6 +227,9 @@ def test_migracao_mantem_a_sessao_e_o_registro(tmp_path):
     conn.execute("INSERT INTO audit_log (at, action) VALUES ('2026-10-28T10:00:00', 'ver_paciente')")
     for col in ("actor_id", "detail"):
         conn.execute(f"ALTER TABLE audit_log DROP COLUMN {col}")
+    for col in ("end_day", "created_by", "created_at"):  # o que a versão 3 trouxe (test_schedule.py)
+        conn.execute(f"ALTER TABLE schedule_exceptions DROP COLUMN {col}")
+    conn.execute("ALTER TABLE appointments DROP COLUMN confirm_asked_at")
     conn.execute("PRAGMA user_version = 1")
     conn.close()
     conn = connect_practice(s.data_dir, 1)

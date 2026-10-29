@@ -38,6 +38,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 12. **A página nova chega a quem já abriu o site.** O `index.html` sai com `/static/v/<versão>/` (`server.py`), porque
    o Cloudflare guarda .js e .css no navegador por 4 horas, até por cima do `no-cache`. Import entre módulos e `url()`
    do CSS são sempre relativos (`./lib.js`, `fonts/…`): um caminho que começa com `/static/` escapa da versão.
+13. **Nada que já estava marcado é desmarcado sozinho.** Mudar os horários ou fechar a agenda nunca cancela consulta:
+   a resposta devolve as consultas afetadas, com o telefone da família, para a recepção avisar (`scheduling.py`).
 
 ## Comandos
 
@@ -76,15 +78,17 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `catalog.py`: o catálogo de serviços, a configuração padrão e os modelos de registro.
 - `protocols.py`: puericultura, vacinas (PNI) e marcos. `care.py`: a linha do cuidado. `growth.py`: as curvas da OMS
   (`data/who_lms.json`, do pacote anthro da OMS).
-- `scheduling.py`: horários livres, marcar, mudar o estado. `plans.py`: cota e cobertura. `finance.py`: cobranças e
-  resumo do mês. `files.py`: guardar, limpar EXIF, quem vê.
+- `scheduling.py`: horários livres, marcar, mudar o estado, a grade da pediatra (`set_hours`) e a agenda fechada
+  (`closure`). `plans.py`: cota e cobertura. `finance.py`: cobranças e resumo do mês. `files.py`: guardar, limpar EXIF,
+  quem vê.
 - `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
 - `share.py`: como o consultório aparece fora da página: o nome do app no celular (o manifesto), as metatags e a
   imagem da prévia do link (`/og.png`), montados pelo endereço em `server.py`.
 - `seed.py`: a demonstração (tudo relativo ao dia de hoje; recusa a pasta com `demo = false`). `practices.py`: criar
   uma prática (com ou sem pediatra; sem, ela entra pelo convite).
 - `web/`: a página, sem build e sem framework. `glass.css` (os tokens e o vidro), `app.css` (layout), `js/main.js`
-  (entrada), `js/staff*.js` (equipe; o Consultório e a equipe estão em `staff-admin.js`), `js/family.js` (família),
+  (entrada), `js/staff*.js` (equipe; o Consultório e a equipe estão em `staff-admin.js`, os Horários em
+  `staff-schedule.js`, e o WhatsApp com a mensagem pronta em `staff-common.js`), `js/family.js` (família),
   `js/site.js` (plataforma, site público e convite), `js/admin.js` (o painel da administração), `js/lib.js`
   (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
 
