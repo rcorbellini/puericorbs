@@ -1,7 +1,7 @@
 # segredos e dados locais: nunca no git
 .env
 .env.*
-data/
+/data/
 *.db
 *.sqlite
 
