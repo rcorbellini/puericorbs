@@ -102,7 +102,7 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
   `staff-schedule.js`, e o WhatsApp com a mensagem pronta e o diálogo de emitir o recibo ou a nota em
   `staff-common.js`), `js/family.js` (família),
   `js/site.js` (plataforma, site público e convite), `js/admin.js` (o painel da administração), `js/lib.js`
-  (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva e barras).
+  (html escapado, API, formatos, ícones, diálogos), `js/charts.js` (curva, barras e a diferença do CPF ou CNPJ).
 
 ## Visual
 

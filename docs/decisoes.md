@@ -6,6 +6,21 @@
 
 ### 02/11/2026 — a taxa do pagamento e a conta do CPF ou CNPJ
 
+48. **A conta do CPF ou CNPJ é completa, e mostra quando um passa o outro.** Pedido do dono: "uma previsão de custo
+    real e completa de ambos e quando uma passa a valer mais que a outra, talvez com gráfico". Além dos impostos:
+    - **Na empresa:** o contador (R$ 241 por mês, a média online), os custos fixos por ano (a anuidade do Cremesp,
+      R$ 948; o certificado digital; a taxa da Prefeitura) e abrir a empresa (R$ 1.600, uma vez). Daí sai em quantos
+      meses a abertura se paga e quanto sobra no primeiro ano.
+    - **Na pessoa física:** o contador, opcional, que entra no livro-caixa, e a escolha do INSS. Os 20% do que recebe
+      são o padrão; o plano simplificado (11% do salário mínimo, Lei 8.212/1991, art. 21, § 2º) é legal para quem
+      atende só famílias e custa bem menos, mas a aposentadoria fica em um salário mínimo. A escolha empurra o ponto
+      de virada de uns R$ 4 mil para uns R$ 10 mil por mês, por isso fica à vista, com o efeito escrito.
+    - **O gráfico:** a diferença por mês (empresa menos pessoa física) ao longo do faturamento, uma linha só: onde ela
+      cruza o zero é o ponto de virada, marcado com o mesmo número do texto, e o ponto "você hoje". Duas linhas de
+      "fica com você" quase se sobrepõem e escondem o cruzamento. Tooltip, setas do teclado e tabela.
+
+    Cada custo é um campo com o padrão de 2026 e a fonte: a pediatra troca pelo orçamento do contador.
+
 45. **A taxa do gateway é do consultório, e fica à vista.** Pedido do dono: "taxa fica pro consultório, mas precisa
     ficar claro". A família paga o preço do serviço, sem acréscimo. A pediatra vê o custo de cada gateway numa consulta
     dela antes de escolher, e cada pagamento mostra o bruto, a taxa e o líquido no Financeiro e na exportação

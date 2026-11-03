@@ -1,7 +1,7 @@
 // A configuração e o dinheiro: o catálogo de serviços (cada serviço do jeito do pediatra), os planos de acompanhamento e
 // o financeiro da prática.
 import { api, html, raw, icon, toast, fail, dialog, ask, askFields, shareLink, money, dateBR, dateFull, initials, actions, centsInput, toCents, debounce, monthName } from './lib.js';
-import { revenueBars, bindBars, revenueTable } from './charts.js';
+import { revenueBars, bindBars, revenueTable, gainChart, bindGain, gainTable } from './charts.js';
 import { isClinician, documentDialog } from './staff-common.js';
 import { refresh } from './staff.js';
 
@@ -549,45 +549,75 @@ function bindFiscal(form, f) {
   });
 }
 
-// ---- CPF ou CNPJ? A conta do mês (`taxes.py`), para a pediatra que ainda decide como recebe. Só ela vê.
-const pf$ = (cents) => money(cents);
+// ---- CPF ou CNPJ? A conta do mês (`taxes.py`), com todos os custos, o gráfico da diferença e em quanto tempo abrir a
+// empresa se paga. Só a pediatra vê: é o dinheiro dela.
+const pct = (n) => `${String(n).replace('.', ',')}%`;
+const INSS_HOW = {
+  full: 'A aposentadoria e os auxílios acompanham o que você recebe, até o teto.',
+  simple: 'Bem mais barato, mas a aposentadoria e os auxílios ficam em um salário mínimo. Vale para quem atende só famílias (pessoas físicas).',
+};
+
 function compareLines(sc, title, best) {
   return html`<div class="well" style="display:flex;flex-direction:column;gap:6px;padding:16px">
     <div class="phead center"><b>${title}</b>${best ? html`<span class="pill ok">deixa mais</span>` : ''}</div>
-    ${sc.lines.map((l) => html`<div class="li"><span class="grow">${l.label}<span class="t-small muted"> · ${l.note}</span></span><span class="t-small num">${pf$(l.cents)}</span></div>`)}
-    <div class="li"><span class="grow">Impostos e custos</span><span class="t-small num">${pf$(sc.tax_cents)}<span class="muted"> · ${String(sc.tax_pct).replace('.', ',')}%</span></span></div>
-    <div class="li"><b class="grow">Fica com você</b><b class="num">${pf$(sc.kept_cents)}</b></div>
+    ${sc.lines.map((l) => html`<div class="li"><span class="grow">${l.label}<span class="t-small muted"> · ${l.note}</span></span><span class="t-small num">${money(l.cents)}</span></div>`)}
+    <div class="li"><span class="grow">Impostos e custos</span><span class="t-small num">${money(sc.tax_cents)}<span class="muted"> · ${pct(sc.tax_pct)}</span></span></div>
+    <div class="li"><b class="grow">Fica com você por mês</b><b class="num">${money(sc.kept_cents)}</b></div>
+    <div class="li"><span class="grow t-small muted">No ano</span><span class="t-small num">${money(sc.kept_cents * 12)}</span></div>
   </div>`;
 }
 
-function compareResult(r) {
-  const verdict = r.best === 'pj' ? html`Com esses números, <b>a empresa deixa ${pf$(r.diff_month_cents)} a mais por mês</b> (${pf$(r.diff_year_cents)} no ano).`
-    : r.best === 'pf' ? html`Com esses números, <b>a pessoa física deixa ${pf$(r.diff_month_cents)} a mais por mês</b> (${pf$(r.diff_year_cents)} no ano).`
+function compareResult(r, table) {
+  const i = r.inputs;
+  const verdict = r.best === 'pj' ? html`Com esses números, <b>a empresa deixa ${money(r.diff_month_cents)} a mais por mês</b> (${money(r.diff_year_cents)} no ano).`
+    : r.best === 'pf' ? html`Com esses números, <b>a pessoa física deixa ${money(r.diff_month_cents)} a mais por mês</b> (${money(r.diff_year_cents)} no ano).`
       : r.pj.eligible ? html`Com esses números, os dois caminhos deixam o mesmo.` : html`Com esses números, a empresa não cabe no Simples Nacional.`;
-  const even = r.break_even_cents ? html` A empresa passa a compensar a partir de <b>${pf$(r.break_even_cents)} por mês</b>, com a mesma parte do faturamento em despesas e o mesmo contador.` : '';
+  const even = r.break_even_cents ? html` A empresa passa a compensar a partir de <b>${money(r.break_even_cents)} por mês</b>.` : html` Até ${money(15000000)} por mês, a empresa não chega a compensar.`;
+  const pay = r.best === 'pj' && i.opening_cents
+    ? html`<p class="pretty">Abrir a empresa (${money(i.opening_cents)}, uma vez) <b>se paga em ${r.payback_months} ${r.payback_months === 1 ? 'mês' : 'meses'}</b>. No primeiro ano, já descontada a abertura, ficam ${money(r.first_year_cents)} a mais.</p>` : '';
+  const current = { revenue_cents: i.revenue_cents, gain_cents: r.pj.eligible ? r.pj.kept_cents - r.pf.kept_cents : 0 };
   return html`
-    <p class="pretty">${verdict}${even}</p>
+    <p class="pretty">${verdict}${even}</p>${pay}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
       ${compareLines(r.pf, 'Pessoa física', r.best === 'pf')}
       ${r.pj.eligible ? compareLines(r.pj, 'Empresa no Simples Nacional', r.best === 'pj') : ''}
     </div>
-    ${r.pj.eligible ? html`<p class="t-small muted pretty">Na empresa, a conta paga a você um pró-labore de ${pf$(r.pj.salary_cents)} (28% do faturamento): é ele que deixa a empresa no Anexo III, a ${String(r.pj.rate_pct).replace('.', ',')}%. Com menos, ela vai para o Anexo V, a ${String(r.pj.rate_v_pct).replace('.', ',')}%. O resto sai como lucro.</p>` : ''}
-    ${r.notes.map((n) => html`<p class="t-small pretty">${n}</p>`)}`;
+    ${r.pj.eligible ? html`<p class="t-small muted pretty">Na empresa, a conta paga a você um pró-labore de ${money(r.pj.salary_cents)} (28% do faturamento): é ele que deixa a empresa no Anexo III, a ${pct(r.pj.rate_pct)}. Com menos, ela vai para o Anexo V, a ${pct(r.pj.rate_v_pct)}. O resto sai como lucro.</p>` : ''}
+    ${r.notes.map((n) => html`<p class="t-small pretty">${n}</p>`)}
+    <div><h3 class="t-cap" style="margin-top:4px">Quando um passa o outro</h3>
+      ${gainChart(r.curve, current, r.break_even_cents)}
+      <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="linkbtn t-small" type="button" data-cmp-table>${table ? 'Esconder a tabela' : 'Ver tabela'}</button></div>
+      ${table ? gainTable(r.curve) : ''}</div>`;
 }
 
 function bindCompare(box, first) {
   const h = first.history;
+  let plan = first.inputs.inss_plan;
+  let table = false;
+  let last = first;
   const cents = (name) => toCents(box.querySelector(`[name="${name}"]`).value) || 0;
   const field = (name, label, sub, value) => html`<label class="row"><span class="lbl">${label}<span class="sub">${sub}</span></span><span class="muted">R$</span><input class="inline num" name="${name}" value="${centsInput(value)}" inputmode="decimal" style="flex:0 1 130px"></label>`;
+  const i = first.inputs;
   box.innerHTML = String(html`
     <div><h2 class="t-h2">CPF ou CNPJ? A conta do seu consultório</h2>
-      <p class="t-small muted pretty" style="margin-top:4px">Quanto fica com você por mês atendendo como pessoa física ou com uma empresa no Simples Nacional, com as regras de ${first.year} na cidade de ${first.city}. É uma estimativa para levar ao contador, não a conta dele.</p></div>
+      <p class="t-small muted pretty" style="margin-top:4px">Quanto fica com você em cada caminho, com os impostos e os custos de cada um, a partir de quanto a empresa compensa e em quanto tempo abrir a empresa se paga. Regras de ${first.year}, na cidade de ${first.city}. É uma estimativa para levar ao contador, não a conta dele: troque os custos pelo orçamento que ele der.</p></div>
     <div class="rows">
-      ${field('revenue', 'Recebe por mês', h.revenue_cents ? `a média dos últimos ${h.months} meses aqui` : 'o que entra no consultório', first.inputs.revenue_cents)}
-      ${field('expenses', 'Despesas por mês', 'aluguel, secretária, material', first.inputs.expenses_cents)}
-      ${field('accountant', 'Contador por mês', 'o que ele cobra da empresa', first.inputs.accountant_cents)}
+      ${field('revenue', 'Recebe por mês', h.revenue_cents ? `a média dos últimos ${h.months} meses aqui` : 'o que entra no consultório', i.revenue_cents)}
+      ${field('expenses', 'Despesas por mês', 'aluguel, secretária, material', i.expenses_cents)}
     </div>
-    <div data-result style="display:flex;flex-direction:column;gap:12px">${compareResult(first)}</div>
+    <span class="t-cap">Na pessoa física</span>
+    <div class="rows">
+      <div class="row" style="flex-wrap:wrap;gap:8px"><span class="lbl">INSS<span class="sub" data-inss-how>${INSS_HOW[plan]}</span></span>
+        <div class="seg" role="group" aria-label="INSS na pessoa física">${Object.entries(first.inss_plans).map(([k, l]) => html`<button type="button" data-inss="${k}" aria-pressed="${k === plan}">${l}</button>`)}</div></div>
+      ${field('accountant_pf', 'Contador por mês', 'opcional; entra no livro-caixa', i.accountant_pf_cents)}
+    </div>
+    <span class="t-cap">Na empresa</span>
+    <div class="rows">
+      ${field('accountant', 'Contador por mês', 'obrigatório; a média online é R$ 241', i.accountant_cents)}
+      ${field('fixed_year', 'Custos fixos por ano', 'Cremesp, certificado digital e taxa da Prefeitura', i.fixed_year_cents)}
+      ${field('opening', 'Abrir a empresa', 'uma vez: Junta, inscrição no CRM e certificado', i.opening_cents)}
+    </div>
+    <div data-result style="display:flex;flex-direction:column;gap:12px">${compareResult(first, table)}</div>
     <details><summary class="t-small" style="cursor:pointer;font-weight:700">O que muda além do imposto</summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px">
         <div><b class="t-small">Pessoa física</b><ul class="t-small pretty bullets" style="margin-top:6px">
@@ -599,7 +629,7 @@ function bindCompare(box, first) {
         <div><b class="t-small">Empresa</b><ul class="t-small pretty bullets" style="margin-top:6px">
           <li>Abrir leva semanas, e o contador é obrigatório todo mês.</li>
           <li>Medicina não pode ser MEI: a empresa nasce no Simples Nacional, como ME.</li>
-          <li>Todo mês, a empresa paga o DAS e o seu pró-labore.</li>
+          <li>Todo mês, a empresa paga o DAS e o seu pró-labore. O INSS é sobre o pró-labore, e a aposentadoria acompanha ele, até o teto.</li>
           <li>A família recebe a nota fiscal, e o PIX Automático fica liberado.</li>
           <li>O dinheiro da empresa não é o seu: o seu é o pró-labore e o lucro.</li></ul></div>
       </div></details>
@@ -611,15 +641,25 @@ function bindCompare(box, first) {
         <li>O registro da empresa no Cremesp: toda empresa médica precisa.</li>
         <li>A conta no banco em nome da empresa e o certificado digital (A1), que a nota automática vai pedir.</li>
         <li>Aqui, em "Como você recebe", marque Empresa e preencha o CNPJ.</li></ol></details>
-    <p class="t-small muted">Fontes: ${first.sources.map((s, i) => html`${i ? ' · ' : ''}<a href="${s.url}" target="_blank" rel="noopener">${s.label}</a>`)}.</p>`);
+    <p class="t-small muted">Fontes: ${first.sources.map((s, n) => html`${n ? ' · ' : ''}<a href="${s.url}" target="_blank" rel="noopener">${s.label}</a>`)}.</p>`);
   const result = box.querySelector('[data-result]');
+  const paint = (r) => { last = r; result.innerHTML = String(compareResult(r, table)); bindGain(result, r.curve); };
+  bindGain(result, first.curve);
   const run = debounce(async () => {
-    try {
-      const r = await api(`/api/staff/fiscal/compare?revenue_cents=${cents('revenue')}&expenses_cents=${cents('expenses')}&accountant_cents=${cents('accountant')}`);
-      result.innerHTML = String(compareResult(r));
-    } catch (e) { fail(e); }
+    const q = ['revenue', 'expenses', 'accountant', 'fixed_year', 'opening', 'accountant_pf'].map((k) => `${k}_cents=${cents(k)}`).join('&');
+    try { paint(await api(`/api/staff/fiscal/compare?${q}&inss_plan=${plan}`)); } catch (e) { fail(e); }
   }, 350);
   box.addEventListener('input', run);
+  box.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-inss]');
+    if (b) {
+      plan = b.dataset.inss;
+      box.querySelectorAll('[data-inss]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      box.querySelector('[data-inss-how]').textContent = INSS_HOW[plan];
+      run();
+    }
+    if (ev.target.closest('[data-cmp-table]')) { table = !table; paint(last); }
+  });
 }
 
 export async function practice(view, params, app) {

@@ -76,8 +76,10 @@ def _last_months(conn, today: str, n: int = 3) -> dict:
 
 
 @router.get("/fiscal/compare")
-def fiscal_compare(revenue_cents: int | None = None, expenses_cents: int | None = None, accountant_cents: int = 0,
-                   ctx: Ctx = Depends(dep)):
+def fiscal_compare(revenue_cents: int | None = None, expenses_cents: int | None = None,
+                   accountant_cents: int = round(taxes.ACCOUNTANT * 100), fixed_year_cents: int = round(taxes.FIXED_YEAR * 100),
+                   opening_cents: int = round(taxes.OPENING * 100), accountant_pf_cents: int = 0,
+                   inss_plan: str = "full", ctx: Ctx = Depends(dep)):
     """CPF ou CNPJ? A conta do mês (`taxes.py`). Só a pediatra: é o dinheiro dela. Sem valores, parte da média dos
     últimos três meses do Financeiro."""
     clinician(ctx)
@@ -85,10 +87,14 @@ def fiscal_compare(revenue_cents: int | None = None, expenses_cents: int | None 
     history = _last_months(conn, ctx.today.isoformat())
     revenue = history["revenue_cents"] if revenue_cents is None else revenue_cents
     expenses = history["expenses_cents"] if expenses_cents is None else expenses_cents
-    for value in (revenue, expenses, accountant_cents):
+    for value in (revenue, expenses, accountant_cents, fixed_year_cents, opening_cents, accountant_pf_cents):
         if not 0 <= value <= 100_000_000_00:
-            raise HTTPException(400, "Escreva valores por mês, de zero a R$ 100 milhões.")
-    return {**taxes.compare(revenue, expenses, accountant_cents), "history": history}
+            raise HTTPException(400, "Escreva valores de zero a R$ 100 milhões.")
+    if inss_plan not in taxes.INSS_PLANS:
+        raise HTTPException(400, "Escolha o INSS da pessoa física: 20% do que recebe ou 11% do salário mínimo.")
+    return {**taxes.compare(revenue, expenses, accountant_cents, fixed_year_cents, opening_cents, accountant_pf_cents,
+                           inss_plan),
+            "history": history}
 
 
 def _paid_charge(conn, charge_id: int) -> dict:

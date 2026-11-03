@@ -4,6 +4,7 @@ partir do Financeiro da prática dela. Os valores esperados foram feitos à mão
 from __future__ import annotations
 
 from datetime import date
+from itertools import pairwise
 
 from conftest import client
 
@@ -94,4 +95,55 @@ def test_so_a_pediatra_faz_a_conta_e_com_o_financeiro_dela(fresh):
     r = marina.get("/api/staff/fiscal/compare?revenue_cents=3000000&expenses_cents=600000&accountant_cents=50000").json()
     assert r["best"] == "pj" and r["inputs"]["expenses_cents"] == 600000 and r["year"] == 2026
     bad = marina.get("/api/staff/fiscal/compare?revenue_cents=-1")
-    assert bad.status_code == 400 and "por mês" in bad.json()["detail"]
+    assert bad.status_code == 400 and "de zero" in bad.json()["detail"]
+    for k in ("accountant", "fixed_year", "opening", "accountant_pf"):
+        assert marina.get(f"/api/staff/fiscal/compare?{k}_cents=-1").status_code == 400, k
+    bad = marina.get("/api/staff/fiscal/compare?inss_plan=nenhum")
+    assert bad.status_code == 400 and "INSS" in bad.json()["detail"]
+    # cada custo chega à conta: o plano do INSS, o contador da pessoa física, os fixos e a abertura
+    q = ("/api/staff/fiscal/compare?revenue_cents=1500000&expenses_cents=0&accountant_cents=30000"
+         "&fixed_year_cents=120000&opening_cents=240000&accountant_pf_cents=10000&inss_plan=simple")
+    r = marina.get(q).json()
+    assert r["inputs"] == {"revenue_cents": 1500000, "expenses_cents": 0, "accountant_cents": 30000,
+                           "fixed_year_cents": 120000, "opening_cents": 240000, "accountant_pf_cents": 10000,
+                           "inss_plan": "simple"}
+    assert r == {**taxes.compare(1500000, 0, 30000, 120000, 240000, 10000, "simple"), "history": r["history"]}
+
+
+def test_o_custo_completo_de_cada_caminho():
+    # o plano simplificado: 11% do salário mínimo, qualquer que seja o faturamento
+    simple = {x["label"]: x["cents"] for x in taxes.individual(30000, 0, 0, "simple")["lines"]}
+    assert simple["INSS"] == 17831
+    # o contador da pessoa física é custo e entra no livro-caixa (baixa o imposto)
+    sem, com = taxes.individual(8000, 2000), taxes.individual(8000, 2000, 300)
+    ir = lambda sc: {x["label"]: x["cents"] for x in sc["lines"]}["Imposto de renda"]
+    assert ir(com) < ir(sem) and com["kept_cents"] < sem["kept_cents"]
+    # os custos fixos da empresa entram por mês
+    pj = {x["label"]: x["cents"] for x in taxes.company(30000, 0, 0, 1200)["lines"]}
+    assert pj["Cremesp, certificado e Prefeitura"] == 10000
+    # os padrões: o custo de ter uma empresa em São Paulo em 2026
+    r = taxes.compare(3000000, 600000)
+    assert r["inputs"]["accountant_cents"] == 24100 and r["inputs"]["fixed_year_cents"] == 137400
+    assert r["inputs"]["opening_cents"] == 160000 and r["inputs"]["inss_plan"] == "full"
+
+
+def test_em_quanto_tempo_a_empresa_se_paga_e_a_curva():
+    r = taxes.compare(1500000, 0, 30000, 120000, 500000, 0, "full")
+    assert r["best"] == "pj"
+    assert r["payback_months"] == -(-500000 // r["diff_month_cents"])
+    assert r["first_year_cents"] == 12 * r["diff_month_cents"] - 500000
+    assert taxes.compare(1500000, 0, 30000, 120000, 0)["payback_months"] == 0
+    low = taxes.compare(300000, 0)
+    assert low["best"] == "pf" and low["payback_months"] is None and low["first_year_cents"] is None
+    # o INSS simplificado empurra o ponto de virada para cima
+    full, simple = taxes.compare(1500000, 300000), taxes.compare(1500000, 300000, inss_plan="simple")
+    assert simple["break_even_cents"] > full["break_even_cents"]
+    # a curva cruza o zero onde a conta diz que a empresa passa a compensar
+    for res in (full, simple):
+        c = res["curve"]
+        cross = [b["revenue_cents"] for a, b in pairwise(c) if a["gain_cents"] <= 0 < b["gain_cents"]]
+        assert cross and abs(cross[0] - res["break_even_cents"]) <= (c[1]["revenue_cents"] - c[0]["revenue_cents"]) + 25000
+        assert all(p["gain_cents"] == p["pj_cents"] - p["pf_cents"] for p in c)
+        assert c[-1]["revenue_cents"] >= 2 * 1500000
+    # a curva vai até o dobro de onde a pediatra está (aqui, além do mínimo de R$ 40 mil)
+    assert taxes.compare(3000000, 0)["curve"][-1]["revenue_cents"] >= 6000000

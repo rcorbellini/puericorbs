@@ -95,7 +95,9 @@
 | Como você recebe | `billing_mode` (`pf`, `pj`), `fiscal.py` | pessoa física (o recibo do Receita Saúde) ou empresa (a nota); "ainda não sei" também vale. Só a pediatra muda, em Consultório; por ora, na cidade de São Paulo |
 | A emitir | `charges.invoice = 'emitir'` | a cobrança paga que ainda espera o recibo ou a nota: a fila da Recepção |
 | O documento do pagamento | `fiscal.document`, `charges.document_file_id` | o que o recibo ou a nota pede (os dados para copiar e o que falta no cadastro) e o PDF anexado, que a família vê em Arquivos |
-| CPF ou CNPJ? (a conta) | `taxes.py`, `GET /api/staff/fiscal/compare` | a comparação do mês entre pessoa física e empresa no Simples Nacional, para a pediatra escolher como recebe; uma estimativa com as regras do ano, não a apuração do contador |
+| CPF ou CNPJ? (a conta) | `taxes.py`, `GET /api/staff/fiscal/compare`, `gainChart` | a comparação do mês entre pessoa física e empresa no Simples Nacional, para a pediatra escolher como recebe; uma estimativa com as regras do ano, não a apuração do contador |
+| Ponto de virada | `break_even_cents` | o faturamento por mês a partir do qual a empresa deixa mais que a pessoa física |
+| Plano simplificado do INSS | `inss_plan = 'simple'` | 11% do salário mínimo na pessoa física, no lugar de 20% do que recebe; mais barato, aposentadoria de um salário mínimo |
 | Regime da empresa | `tax_regime` (`simples`, `presumido`) | decide onde a nota sai: o Emissor Nacional (Simples Nacional) ou a Nota Fiscal Paulistana (Lucro Presumido) |
 | Inscrição municipal, CCM | `municipal_registration` | o cadastro da empresa na prefeitura de São Paulo |
 | Alíquota do ISS | `iss_rate` | em %, de 0 a 5; o contador confirma |

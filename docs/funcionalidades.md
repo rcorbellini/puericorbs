@@ -195,7 +195,9 @@ cuidado é a lista desses itens, dividida em **feito** e **a fazer**.
 - `M1` **CPF ou CNPJ? A conta do consultório** (feito em 02/11, por ora na cidade de São Paulo): a pediatra que ainda
   decide como recebe compara, com o que entra e sai por mês (a média do Financeiro, ou o que ela escrever), quanto fica
   com ela como pessoa física e com uma empresa no Simples Nacional, vê a partir de quanto a empresa compensa, o que
-  muda além do imposto e os passos para abrir o CNPJ (`taxes.py`, regras de 2026).
+  muda além do imposto e os passos para abrir o CNPJ (`taxes.py`, regras de 2026). Com o custo completo de cada
+  caminho (contador, Cremesp, certificado, Prefeitura, abrir a empresa, o plano do INSS), em quantos meses a
+  abertura se paga e o gráfico de quando um passa o outro.
 - `M2` Nota fiscal de serviço (NFS-e) automática para quem atende como PJ: direto pela API da NFS-e Nacional (o
   Simples emite por ela desde 1º/11/2026) ou por um provedor, nas prefeituras que ainda exigem o sistema próprio
   (`pagamentos.md`).

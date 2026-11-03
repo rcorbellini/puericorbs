@@ -253,3 +253,15 @@ body.acting .side { top: 72px; }
 .bullets, .steps { display: grid; gap: 4px; padding-left: 20px; }
 .bullets li { list-style: disc; }
 .steps li { list-style: decimal; }
+
+/* CPF ou CNPJ: a curva da diferença */
+.chart.gain .gl { fill: none; stroke: var(--s1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart.gain .axis { stroke: color-mix(in srgb, var(--text) 45%, transparent); }
+.chart.gain .even { stroke: color-mix(in srgb, var(--text) 40%, transparent); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart.gain .evlab, .chart.gain .you { text-anchor: middle; font-weight: 700; fill: var(--text); }
+.chart.gain .zone { fill: var(--muted); text-anchor: end; }
+.chart.gain .xh { stroke: color-mix(in srgb, var(--text) 30%, transparent); stroke-width: 1; }
+.chart.gain .hitarea { fill: transparent; cursor: crosshair; }
+.chart.gain .hitarea:focus { outline: none; }
+.chart.gain .hitarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chart.gain .pt.hov { fill: var(--s1); stroke: var(--bg); stroke-width: 2; pointer-events: none; }
