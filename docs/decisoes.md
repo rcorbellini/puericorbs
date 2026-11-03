@@ -4,6 +4,24 @@
 
 ## Tomadas
 
+### 02/11/2026 — a taxa do pagamento e a conta do CPF ou CNPJ
+
+45. **A taxa do gateway é do consultório, e fica à vista.** Pedido do dono: "taxa fica pro consultório, mas precisa
+    ficar claro". A família paga o preço do serviço, sem acréscimo. A pediatra vê o custo de cada gateway numa consulta
+    dela antes de escolher, e cada pagamento mostra o bruto, a taxa e o líquido no Financeiro e na exportação
+    (`pagamentos.md`, "A taxa é do consultório"). Entra com o primeiro gateway.
+46. **O Puericorbs ajuda a escolher entre CPF e CNPJ.** Pedido do dono: "esse portal é focado em pequenos médicos a
+    resolver os problemas deles do dia a dia, a escolha do CPF ou CNPJ também é um deles". Em Consultório, abaixo de
+    "Como você recebe", a pediatra faz a conta do mês: quanto fica com ela como pessoa física (carnê-leão, INSS e
+    livro-caixa; o ISS é isento em São Paulo) e com uma empresa no Simples Nacional (Anexo III, com o pró-labore em
+    28%), a partir de quanto a empresa compensa, o que muda além do imposto e os passos para abrir o CNPJ. Parte da
+    média dos últimos três meses do Financeiro. As regras de 2026 moram em `taxes.py`, com a fonte de cada número, e
+    mudam todo ano. É uma estimativa para levar ao contador: o Lucro Presumido, o imposto mínimo acima de R$ 600 mil por
+    ano e o ajuste anual ficam fora, e a tela avisa quando eles pesam. Só a pediatra vê: é o dinheiro dela.
+47. **O Stripe aceita CPF e CNPJ, mas não muda a recomendação do gateway.** O PIX dele é por convite, custa 1,19% e
+    proíbe "serviços médicos"; o cartão é o mais caro (3,99% + R$ 0,39), e ele não emite nota. O Asaas segue o primeiro
+    (`pagamentos.md`, "O Stripe").
+
 ### 29/10/2026 — pessoa física ou empresa, e o documento de cada pagamento
 
 42. **O Puericorbs atende a pediatra que recebe como pessoa física e a que recebe com CNPJ; por ora, só na cidade de
@@ -196,7 +214,7 @@
 | Recuperar a senha da equipe | link por e-mail; a administração gera um link de troca | link por e-mail quando houver envio de e-mail; até lá, falar com a plataforma |
 | Como ligar os domínios, em escala | uma zona por domínio (em uso, decisão 23); Cloudflare for SaaS (CNAME para a plataforma) | Cloudflare for SaaS quando houver o domínio da plataforma (`dominios.md`) |
 | Onde fica o backup fora de casa (antes do primeiro paciente de verdade) | outro disco em outro lugar; um armazenamento na nuvem, criptografado antes de sair | criptografado na origem, num armazenamento na nuvem |
-| Gateway de pagamento | Asaas (CPF e CNPJ; PIX a R$ 1,99; cartão, boleto, assinatura e a nota da empresa pela API); InfinitePay (CPF e CNPJ; PIX grátis; a API só faz o link de pagamento); Mercado Pago (CPF e CNPJ; PIX a 0,99%); AbacatePay (só CNPJ) | cada pediatra recebe na conta dela. O Asaas primeiro, porque atende pessoa física e empresa numa integração só; a InfinitePay depois, para quem quer o PIX de graça, testada antes numa conta com CPF (`pagamentos.md`, "Pessoa física e empresa") |
+| Gateway de pagamento | Asaas (CPF e CNPJ; PIX a R$ 1,99; cartão, boleto, assinatura e a nota da empresa pela API); InfinitePay (CPF e CNPJ; PIX grátis; a API só faz o link de pagamento); Mercado Pago (CPF e CNPJ; PIX a 0,99%); AbacatePay (só CNPJ); Stripe (CPF e CNPJ; cartão a 3,99% + R$ 0,39; PIX por convite, a 1,19%, e proibido para "serviços médicos") | cada pediatra recebe na conta dela, e a taxa é do consultório (decisão 45). O Asaas primeiro, porque atende pessoa física e empresa numa integração só; a InfinitePay depois, para quem quer o PIX de graça, testada antes numa conta com CPF (`pagamentos.md`, "Pessoa física e empresa") |
 | Receitas pelo sistema | a receita do Puericorbs em PDF, assinada com o certificado em nuvem da pediatra (ICP-Brasil); a Memed dentro do Puericorbs (depende de parceria); a plataforma do CFM ou o papel, com o PDF chegando à família pelo app | o PDF do Puericorbs assinado no certificado em nuvem: a receita nasce da consulta, com o nome, a idade e o peso da criança, e a farmácia confere no validador do ITI. A notificação de receita (azul e amarela) continua no papel |
 | Preço do Puericorbs | por pediatra/mês; taxa sobre o que passa no gateway; os dois | conversar com os pilotos antes |
 | Prontuário sem papel | certificar o sistema (SBIS/CFM, NGS2); assinar cada registro com o certificado em nuvem do pediatra | assinar por registro no começo; certificar quando houver tração |

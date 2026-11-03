@@ -164,6 +164,7 @@ páginas de cada gateway nesta data. As marcadas com † não foram confirmadas 
 | **Asaas** | CPF e CNPJ, com a conta aprovada e a prova de vida | R$ 1,99 por cobrança (R$ 0,99 nos 3 primeiros meses) | 2,99% + R$ 0,49 (1,99% + R$ 0,49 nos 3 primeiros meses); débito 1,89% + R$ 0,35 | PIX, boleto (R$ 1,99; com CPF, até R$ 5.000 cada), cartão, assinatura e a nota da empresa (R$ 0,49 cada) |
 | **Mercado Pago** | CPF e CNPJ | cerca de 0,99%† | a confirmar† | completa, com assinatura |
 | **AbacatePay** | só CNPJ | R$ 0,80† | R$ 0,60 + 3,5%† | PIX, checkout e assinatura no cartão |
+| **Stripe** | CPF e CNPJ (lido em 02/11/2026) | 1,19%, só por convite, e proibido para "serviços médicos" (abaixo) | 3,99% + R$ 0,39 | completa, com assinatura no cartão; sem PIX Automático e sem nota |
 
 Numa consulta de R$ 450:
 
@@ -172,6 +173,8 @@ Numa consulta de R$ 450:
 | no PIX | R$ 0 | R$ 1,99 (0,44%) |
 | no cartão à vista | R$ 14,18 | R$ 13,95 |
 | 80 consultas no PIX, num mês | R$ 0 | R$ 159,20 |
+
+No Stripe, a mesma consulta custaria R$ 18,35 no cartão e R$ 5,36 no PIX (R$ 428,40 em 80 PIX), se o PIX fosse liberado.
 
 - **O PIX Automático exige CNPJ de quem recebe** (regra do Banco Central). A pediatra pessoa física cobra a mensalidade
   do plano no cartão recorrente (o Asaas faz) ou com um PIX novo a cada mês.
@@ -183,6 +186,33 @@ Numa consulta de R$ 450:
   para a empresa, a nota. O preço é o R$ 1,99 por PIX.
 - **Cada pediatra recebe na conta dela** (acima). O Puericorbs pode ter mais de um provedor atrás do mesmo
   `payments.py`, e cada pediatra cola a chave do dela.
+
+## O Stripe
+
+Pergunta do dono (02/11/2026): o Stripe aceita CPF e CNPJ? Lido nas páginas do Stripe nesta data.
+
+- **Aceita os dois.** A conta brasileira abre como pessoa física (CPF) ou jurídica (CNPJ), e a conta do banco tem de
+  ser do mesmo CPF ou CNPJ. O tipo e o nome não mudam depois da verificação: quem passa de CPF para CNPJ abre outra
+  conta, e a chave no Puericorbs troca junto.
+- **O PIX é o problema.** Pela documentação, o PIX no Stripe proíbe a categoria "serviços médicos" (MCC 8099), além
+  de hospitais e laboratórios. O consultório costuma entrar como "médicos" (MCC 8011), que não está na lista, mas a
+  conta pode cair na categoria proibida. Além disso, o PIX é por convite, custa 1,19% e passa pela EBANX, que aparece
+  como recebedor no extrato da família. O PIX Automático não existe para empresa brasileira.
+- **É o mais caro.** O cartão sai a 3,99% + R$ 0,39, contra 2,99% + R$ 0,49 no Asaas, e o Stripe não emite nota.
+- **O que ele tem de melhor:** a API e a documentação, as melhores do mercado, e o checkout pronto.
+- **Resumo:** serve para o cartão. Para o PIX na recepção, que é o caso do dia a dia, ele fica atrás do Asaas e da
+  InfinitePay até alguém confirmar com o Stripe que o PIX funciona para um consultório pediátrico.
+
+## A taxa é do consultório, e aparece
+
+Decisão do dono (02/11/2026): a taxa do gateway fica com o consultório, nunca com a família, e precisa ficar clara.
+
+- **A família paga o preço do serviço,** sem acréscimo, em qualquer forma de pagamento.
+- **A pediatra vê a taxa antes de escolher:** em "Como você recebe", cada gateway com o custo de uma consulta dela, no
+  PIX e no cartão.
+- **Cada pagamento mostra o bruto, a taxa e o líquido,** no Financeiro e na exportação para o contador. A taxa entra
+  como despesa do mês, e o "Resultado" já sai sem ela.
+- **Construído quando o primeiro gateway entrar;** hoje não há gateway, e o pagamento é registrado à mão.
 
 ## Recomendação
 

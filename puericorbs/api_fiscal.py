@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from . import files, fiscal
+from . import files, finance, fiscal, taxes
 from .api_staff import _get, _practice
 from .context import Ctx, clinician, dep
 from .db import insert, now_iso, one, transaction, update
@@ -62,6 +62,33 @@ def save_fiscal(body: FiscalBody, ctx: Ctx = Depends(dep)):
     update(ctx.pconn, "practices", ctx.practice_id, values)
     ctx.audit("fiscal_alterado", "practice", ctx.practice_id, detail=body.mode or "sem definir")
     return fiscal_profile(ctx)
+
+
+def _last_months(conn, today: str, n: int = 3) -> dict:
+    """O que entrou e o que saiu, por mês, nos últimos meses fechados: o ponto de partida da conta."""
+    first = finance.shift_month(today[:7], -n) + "-01"
+    last = finance.shift_month(today[:7], 0) + "-01"
+    got = one(conn, """SELECT COALESCE(SUM(amount_cents), 0) AS s FROM charges
+                       WHERE status = 'paga' AND paid_on >= ? AND paid_on < ?""", (first, last))["s"]
+    spent = one(conn, "SELECT COALESCE(SUM(amount_cents), 0) AS s FROM expenses WHERE spent_on >= ? AND spent_on < ?",
+                (first, last))["s"]
+    return {"months": n, "revenue_cents": got // n, "expenses_cents": spent // n}
+
+
+@router.get("/fiscal/compare")
+def fiscal_compare(revenue_cents: int | None = None, expenses_cents: int | None = None, accountant_cents: int = 0,
+                   ctx: Ctx = Depends(dep)):
+    """CPF ou CNPJ? A conta do mês (`taxes.py`). Só a pediatra: é o dinheiro dela. Sem valores, parte da média dos
+    últimos três meses do Financeiro."""
+    clinician(ctx)
+    _, conn = _practice(ctx, None)
+    history = _last_months(conn, ctx.today.isoformat())
+    revenue = history["revenue_cents"] if revenue_cents is None else revenue_cents
+    expenses = history["expenses_cents"] if expenses_cents is None else expenses_cents
+    for value in (revenue, expenses, accountant_cents):
+        if not 0 <= value <= 100_000_000_00:
+            raise HTTPException(400, "Escreva valores por mês, de zero a R$ 100 milhões.")
+    return {**taxes.compare(revenue, expenses, accountant_cents), "history": history}
 
 
 def _paid_charge(conn, charge_id: int) -> dict:

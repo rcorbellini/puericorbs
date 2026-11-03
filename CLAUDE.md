@@ -89,7 +89,8 @@ endereço decide a prática. O uso e a instalação estão no `README.md`; aqui 
 - `scheduling.py`: horários livres, marcar, mudar o estado, a grade da pediatra (`set_hours`) e a agenda fechada
   (`closure`). `plans.py`: cota e cobertura. `finance.py`: cobranças e resumo do mês. `fiscal.py`: como a pediatra
   recebe (pessoa física ou empresa; por ora, na cidade de São Paulo) e o documento de cada pagamento (o recibo do
-  Receita Saúde ou a nota), com o CPF e o CNPJ conferidos pelos dígitos; as rotas em `api_fiscal.py`. `files.py`:
+  Receita Saúde ou a nota), com o CPF e o CNPJ conferidos pelos dígitos; as rotas em `api_fiscal.py`. `taxes.py`: a conta do CPF ou CNPJ (pessoa
+  física × Simples Nacional), com as regras do ano e a fonte de cada número: **atualize todo janeiro**. `files.py`:
   guardar, limpar EXIF, quem vê.
 - `api_public.py`, `api_staff.py`, `api_family.py`: as rotas. `views.py`: o formato das respostas.
 - `share.py`: como o consultório aparece fora da página: o nome do app no celular (o manifesto), as metatags e a

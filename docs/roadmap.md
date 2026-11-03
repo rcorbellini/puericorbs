@@ -21,7 +21,8 @@ o consultório da primeira pediatra no ar em https://karitanaves.com.br, ainda v
   todas e a administração do consultório, com a equipe entrando por convite.
 - **Também em 29/10:** o convite da família nova pré-preenchido (a família confere e completa), o QR code em todo
   convite e o recibo ou a nota de cada pagamento, para a pediatra pessoa física ou com empresa (por ora em São Paulo):
-  a recepção emite com os dados prontos e o PDF chega à família. **Falta:** recuperar a senha da equipe, documentos em
+  a recepção emite com os dados prontos e o PDF chega à família. Em 02/11, a conta do CPF ou CNPJ, para a pediatra
+  escolher como recebe. **Falta:** recuperar a senha da equipe, documentos em
   PDF, caixa, lembretes (push e e-mail).
 
 ## Conversar com pediatras

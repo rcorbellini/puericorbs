@@ -196,6 +196,12 @@ def shots(out: Path, only: str = "") -> int:
         run("convite-qr-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=lambda page: (
             page.click('[data-team="invite"]'), page.click('dialog.dlg .dlg-foot .btn:not(.ghost)'),
             page.wait_for_selector('[data-mode="qr"]'), page.click('[data-mode="qr"]')))
+        # CPF ou CNPJ: a conta com outro faturamento, refeita na hora, e as duas listas abertas
+        conta = lambda page: (page.fill('#cpf-ou-cnpj [name="revenue"]', "30.000,00"),
+                              page.fill('#cpf-ou-cnpj [name="accountant"]', "500,00"), page.wait_for_timeout(800),
+                              [d.evaluate("d => d.open = true") for d in page.query_selector_all('#cpf-ou-cnpj details')])
+        run("consultorio-conta-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=conta)
+        run("consultorio-conta-escuro-1280", "dramarina.localhost", "#/consultorio", DESK, m, theme="escuro", after=conta)
         run("consultorio-bia-1280", "dramarina.localhost", "#/consultorio", DESK, "bia@demo.test")
         run("consultorio-bia-390", "dramarina.localhost", "#/consultorio", PHONE, "bia@demo.test")
         run("consultorio-convidar-390", "dramarina.localhost", "#/consultorio", PHONE, m, after=click('[data-team="invite"]'))

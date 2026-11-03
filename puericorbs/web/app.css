@@ -248,3 +248,8 @@ body.acting .side { top: 72px; }
 .vgroup + .vgroup { margin-top: 10px; }
 .thumb { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; flex: none; background: var(--well); }
 .print-only { display: none; }
+
+/* listas com marcador (o glass.css tira o do li): os itens de um texto e os passos numerados */
+.bullets, .steps { display: grid; gap: 4px; padding-left: 20px; }
+.bullets li { list-style: disc; }
+.steps li { list-style: decimal; }
